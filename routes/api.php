@@ -14,5 +14,5 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-use App\Http\Controllers\Api\AuthController;
-
+Route::prefix('v1/admin')->group(base_path('routes/api/v1/admin/admin.php'));
+Route::prefix('v1/mobile')->group(base_path('routes/api/v1/mobile/*.php'));
