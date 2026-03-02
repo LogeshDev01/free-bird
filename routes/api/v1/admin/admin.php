@@ -17,15 +17,9 @@ Route::prefix('auth')->group(function () {
 });
 
 
-Route::middleware(['jwt.cookie'])->group(function () {
+Route::middleware(['jwt.cookie', 'auth:api'])->group(function () {
 
     Route::get('/me', [AuthController::class, 'me']);
-
-    Route::get('/dashboard', function () {
-        return response()->json([
-            'message' => 'Admin dashboard access granted',
-            'admin' => auth()->user()
-        ]);
-    });
+    
 
 });

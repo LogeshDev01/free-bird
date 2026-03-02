@@ -46,7 +46,11 @@ return [
         |
         */
 
-        'public' => env('JWT_PUBLIC_KEY'),
+        'public' => env('JWT_PUBLIC_KEY')
+            ? (str_starts_with(env('JWT_PUBLIC_KEY'), 'file://') || str_starts_with(env('JWT_PUBLIC_KEY'), '-----BEGIN')
+                ? env('JWT_PUBLIC_KEY')
+                : 'file://' . base_path(env('JWT_PUBLIC_KEY')))
+            : null,
 
         /*
         |--------------------------------------------------------------------------
@@ -59,7 +63,11 @@ return [
         |
         */
 
-        'private' => env('JWT_PRIVATE_KEY'),
+        'private' => env('JWT_PRIVATE_KEY')
+            ? (str_starts_with(env('JWT_PRIVATE_KEY'), 'file://') || str_starts_with(env('JWT_PRIVATE_KEY'), '-----BEGIN')
+                ? env('JWT_PRIVATE_KEY')
+                : 'file://' . base_path(env('JWT_PRIVATE_KEY')))
+            : null,
 
         /*
         |--------------------------------------------------------------------------

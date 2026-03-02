@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Api\v1\Admin;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
@@ -68,7 +68,7 @@ class AuthController extends Controller
 
         } catch (\Exception $e) {
 
-            \Log::error('Admin Login Error: ' . $e->getMessage());
+            Log::error('Admin Login Error: ' . $e->getMessage());
 
             return response()->json([
                 'status'  => false,
@@ -102,7 +102,7 @@ class AuthController extends Controller
 
         } catch (\Exception $e) {
 
-            \Log::error('Admin Me Error: ' . $e->getMessage());
+            Log::error('Admin Me Error: ' . $e->getMessage());
 
             return response()->json([
                 'status'  => false,
@@ -154,7 +154,7 @@ class AuthController extends Controller
             return $this->respondWithCookies($admin, $accessToken, $plainRefreshToken, $response);
 
         } catch (\Exception $e) {
-            \Log::error('Admin Refresh Error: ' . $e->getMessage());
+            Log::error('Admin Refresh Error: ' . $e->getMessage());
             return response()->json(['status' => false, 'message' => 'Refresh failed'], 500);
         }
     }

@@ -75,12 +75,7 @@ return [
         'trainers' => [
             'driver' => 'eloquent',
             'model' => App\Models\Trainer::class,
-        ],
-
-        'users' => [
-            'driver' => 'eloquent',
-            'model' => App\Models\User::class,
-        ],
+        ]
     ],
 
     /*
