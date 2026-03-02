@@ -10,6 +10,7 @@ class JwtFromCookie
     {
         if ($token = $request->cookie('access_token')) {
             $request->headers->set('Authorization', 'Bearer '.$token);
+            auth('api')->setToken($token);
         }
 
         return $next($request);
