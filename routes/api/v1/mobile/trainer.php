@@ -2,14 +2,95 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\v1\Mobile\Trainer\AuthController;
+use App\Http\Controllers\Api\v1\Mobile\Trainer\DashboardController;
+use App\Http\Controllers\Api\v1\Mobile\Trainer\ProfileController;
+use App\Http\Controllers\Api\v1\Mobile\Trainer\ClientController;
+use App\Http\Controllers\Api\v1\Mobile\Trainer\SessionController;
+use App\Http\Controllers\Api\v1\Mobile\Trainer\WorkoutController;
+use App\Http\Controllers\Api\v1\Mobile\Trainer\DietPlanController;
+use App\Http\Controllers\Api\v1\Mobile\Trainer\NotificationController;
+use App\Http\Controllers\Api\v1\Mobile\Trainer\SlotController;
+use App\Http\Controllers\Api\v1\Mobile\Trainer\HistoryController;
+use App\Http\Controllers\Api\v1\Mobile\Trainer\TrainerController;
+use App\Http\Controllers\Api\v1\Mobile\WaterLogController;
 
 Route::prefix('trainer')->group(function () {
 
-        Route::post('send-otp', [AuthController::class, 'sendOtp']);
-        Route::post('verify-otp', [AuthController::class, 'verifyOtp']);
-        
-        Route::middleware('auth:trainer')->group(function () {
-            Route::post('logout', [AuthController::class, 'logout']);
-            Route::post('refresh', [AuthController::class, 'refresh']);
-        });
+    /*
+    |--------------------------------------------------------------------------
+    | 🔓 PUBLIC (No Auth Required)
+    |--------------------------------------------------------------------------
+    */
+    Route::post('send-otp', [AuthController::class, 'sendOtp']);
+    Route::post('verify-otp', [AuthController::class, 'verifyOtp']);
+
+    /*
+    |--------------------------------------------------------------------------
+    | 🔒 PROTECTED (Auth Required)
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware('auth:trainer')->group(function () {
+
+        // ── Auth ────────────────────────────────────────
+        Route::post('logout', [AuthController::class, 'logout']);
+        Route::post('refresh', [AuthController::class, 'refresh']);
+
+        // ── Dashboard & History ───────────────────────
+        Route::get('dashboard', [DashboardController::class, 'index']);
+        Route::get('history', [HistoryController::class, 'index']);
+        Route::get('employment-info', [TrainerController::class, 'employmentInfo']);
+
+        // ── Profile ────────────────────────────────────
+        Route::get('profile', [ProfileController::class, 'show']);
+        Route::put('profile', [ProfileController::class, 'update']);
+        Route::post('profile/upload-pic', [ProfileController::class, 'uploadProfilePic']);
+
+        // ── Clients ────────────────────────────────────
+        // ⚠️ Static routes BEFORE dynamic {id} routes
+        Route::get('clients/today', [ClientController::class, 'today']);
+        Route::get('clients', [ClientController::class, 'index']);
+        Route::get('clients/{id}', [ClientController::class, 'show']);
+
+        // ── Sessions ───────────────────────────────────
+        // ⚠️ Static routes BEFORE dynamic {id} routes
+        Route::get('sessions/today', [SessionController::class, 'today']);
+        Route::get('sessions', [SessionController::class, 'index']);
+        Route::post('sessions', [SessionController::class, 'store']);
+        Route::put('sessions/{id}/status', [SessionController::class, 'updateStatus']);
+
+        // ── Workouts Library ───────────────────────────
+        // ⚠️ Static routes BEFORE dynamic {id} routes
+        Route::get('workouts/categories', [WorkoutController::class, 'categories']);
+        Route::get('workouts', [WorkoutController::class, 'index']);
+        Route::get('workouts/{id}', [WorkoutController::class, 'show']);
+        Route::post('workouts/assign', [WorkoutController::class, 'assign']);
+
+        // ── Diet Plans Library ─────────────────────────
+        // ⚠️ Static routes BEFORE dynamic {id} routes
+        Route::get('diet-plans/categories', [DietPlanController::class, 'categories']);
+        Route::get('diet-plans', [DietPlanController::class, 'index']);
+        Route::get('diet-plans/{id}', [DietPlanController::class, 'show']);
+        Route::post('diet-plans/assign', [DietPlanController::class, 'assign']);
+
+        // ── Notifications ──────────────────────────────
+        // ⚠️ Static routes BEFORE dynamic {id} routes
+        Route::get('notifications/unread-count', [NotificationController::class, 'unreadCount']);
+        Route::post('notifications/read-all', [NotificationController::class, 'markAllAsRead']);
+        Route::get('notifications', [NotificationController::class, 'index']);
+        Route::post('notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+
+        // ── Slots ──────────────────────────────────────
+        Route::get('slots/types', [SlotController::class, 'types']);
+        Route::get('slots', [SlotController::class, 'index']);
+        Route::post('slots', [SlotController::class, 'store']);
+        Route::put('slots/{id}', [SlotController::class, 'update']);
+        Route::delete('slots/{id}', [SlotController::class, 'destroy']);
+
+        // ── Water Logs ──────────────────────────────────
+        Route::get('water-logs', [WaterLogController::class, 'index']);
+        Route::get('water-logs/weekly', [WaterLogController::class, 'weekly']);
+        Route::post('water-logs', [WaterLogController::class, 'store']);
+        Route::put('water-logs/goal', [WaterLogController::class, 'updateGoal']);
+        Route::delete('water-logs/{id}', [WaterLogController::class, 'destroy']);
     });
+});

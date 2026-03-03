@@ -1,0 +1,106 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
+
+class Client extends Authenticatable
+{
+    use SoftDeletes;
+
+    protected $table = 'fb_tbl_client';
+
+    // ─── Status Constants ─────────────────────────────────
+    const STATUS_ACTIVE   = 1;
+    const STATUS_INACTIVE = 0;
+
+    protected $fillable = [
+        'profile_pic',
+        'first_name',
+        'last_name',
+        'gender',
+        'dob',
+        'phone',
+        'email',
+        'password',
+        'height',
+        'weight',
+        'goal',
+        'address',
+        'city',
+        'state',
+        'zip_code',
+        'country',
+        'emergency_contact_person',
+        'emergency_phone',
+        'status',
+    ];
+
+    protected $hidden = [
+        'password',
+        'created_at',
+        'updated_at',
+    ];
+
+    protected $casts = [
+        'dob'    => 'date',
+        'height' => 'decimal:2',
+        'weight' => 'decimal:2',
+        'status' => 'integer',
+    ];
+
+    protected $appends = ['full_name'];
+
+    // ─── Accessors ────────────────────────────────────────
+
+    public function getFullNameAttribute(): string
+    {
+        return trim($this->first_name . ' ' . $this->last_name);
+    }
+
+    // ─── Relationships ────────────────────────────────────
+
+    public function trainers(): BelongsToMany
+    {
+        return $this->belongsToMany(Trainer::class, 'fb_tbl_trainer_client', 'client_id', 'trainer_id')
+                    ->withPivot('status', 'start_date', 'end_date')
+                    ->withTimestamps();
+    }
+
+    public function sessions(): HasMany
+    {
+        return $this->hasMany(Session::class, 'client_id');
+    }
+
+    public function workoutAssignments(): HasMany
+    {
+        return $this->hasMany(WorkoutAssignment::class, 'client_id');
+    }
+
+    public function dietPlanAssignments(): HasMany
+    {
+        return $this->hasMany(DietPlanAssignment::class, 'client_id');
+    }
+
+    public function notifications(): MorphMany
+    {
+        return $this->morphMany(Notification::class, 'notifiable');
+    }
+
+    public function ratings(): HasMany
+    {
+        return $this->hasMany(TrainerRating::class, 'client_id');
+    }
+
+    /**
+     * Water daily logs for this client
+     */
+    public function waterDailyLogs(): MorphMany
+    {
+        return $this->morphMany(WaterDailyLog::class, 'loggable');
+    }
+}

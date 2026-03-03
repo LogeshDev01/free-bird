@@ -1,16 +1,33 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use PHPOpenSourceSaver\JWTAuth\Contracts\JWTSubject;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class Trainer extends Authenticatable implements JWTSubject
 {
+    use SoftDeletes;
+
     protected $table = 'fb_tbl_trainer';
+
+    // ─── Status Constants ─────────────────────────────────
+    const STATUS_ACTIVE    = 1;
+    const STATUS_INACTIVE  = 0;
+    const STATUS_SUSPENDED = 2;
+
+    // ─── Trainer-Client Pivot Status Constants ────────────
+    const CLIENT_ACTIVE    = 1;
+    const CLIENT_INACTIVE  = 0;
+    const CLIENT_COMPLETED = 2;
 
     protected $fillable = [
         'profile_pic',
+        'qr_code',
         'first_name',
         'last_name',
         'gender',
@@ -22,21 +39,23 @@ class Trainer extends Authenticatable implements JWTSubject
         'state',
         'zip_code',
         'country',
-        
+
         'specialization',
         'experience',
         'qualification',
-        
+
         'emp_id',
         'joining_date',
         'monthly_salary',
         'shift',
         'job_status',
-        
+        'status',
+
         'emergency_contact_person',
         'emergency_phone',
 
         'password',
+        'bio',
     ];
 
     protected $hidden = [
@@ -44,6 +63,17 @@ class Trainer extends Authenticatable implements JWTSubject
         'created_at',
         'updated_at',
     ];
+
+    protected $appends = ['full_name'];
+
+    // ─── Accessors ─────────────────────────────────────────
+
+    public function getFullNameAttribute(): string
+    {
+        return trim($this->first_name . ' ' . $this->last_name);
+    }
+
+    // ─── JWT ───────────────────────────────────────────────
 
     public function getJWTIdentifier()
     {
@@ -55,8 +85,140 @@ class Trainer extends Authenticatable implements JWTSubject
         return [];
     }
 
+    // ─── Relationships ─────────────────────────────────────
+
+    /**
+     * Refresh tokens (polymorphic)
+     */
     public function refreshTokens(): MorphMany
     {
         return $this->morphMany(RefreshToken::class, 'tokenable');
+    }
+
+    /**
+     * Clients assigned to this trainer
+     */
+    public function clients(): BelongsToMany
+    {
+        return $this->belongsToMany(Client::class, 'fb_tbl_trainer_client', 'trainer_id', 'client_id')
+                    ->withPivot('status', 'start_date', 'end_date')
+                    ->withTimestamps();
+    }
+
+    /**
+     * Active clients only
+     */
+    public function activeClients(): BelongsToMany
+    {
+        return $this->clients()->wherePivot('status', self::CLIENT_ACTIVE);
+    }
+
+    /**
+     * Sessions (training bookings)
+     */
+    public function sessions(): HasMany
+    {
+        return $this->hasMany(Session::class, 'trainer_id');
+    }
+
+    /**
+     * Time slots
+     */
+    public function slots(): HasMany
+    {
+        return $this->hasMany(TrainerSlot::class, 'trainer_id');
+    }
+
+    /**
+     * Workouts created by this trainer
+     */
+    public function workouts(): HasMany
+    {
+        return $this->hasMany(Workout::class, 'trainer_id');
+    }
+
+    /**
+     * Workout assignments made by this trainer
+     */
+    public function workoutAssignments(): HasMany
+    {
+        return $this->hasMany(WorkoutAssignment::class, 'trainer_id');
+    }
+
+    /**
+     * Diet plans created by this trainer
+     */
+    public function dietPlans(): HasMany
+    {
+        return $this->hasMany(DietPlan::class, 'trainer_id');
+    }
+
+    /**
+     * Diet plan assignments made by this trainer
+     */
+    public function dietPlanAssignments(): HasMany
+    {
+        return $this->hasMany(DietPlanAssignment::class, 'trainer_id');
+    }
+
+    /**
+     * Notifications for this trainer (polymorphic)
+     */
+    public function notifications(): MorphMany
+    {
+        return $this->morphMany(Notification::class, 'notifiable');
+    }
+
+    /**
+     * Ratings received by this trainer
+     */
+    public function ratings(): HasMany
+    {
+        return $this->hasMany(TrainerRating::class, 'trainer_id');
+    }
+
+    /**
+     * Water daily logs for this trainer
+     */
+    public function waterDailyLogs(): MorphMany
+    {
+        return $this->morphMany(WaterDailyLog::class, 'loggable');
+    }
+
+    /**
+     * Status history timeline for this trainer
+     */
+    public function statusHistory(): HasMany
+    {
+        return $this->hasMany(TrainerStatusHistory::class, 'trainer_id');
+    }
+
+    // ─── Helper Methods ────────────────────────────────────
+
+    /**
+     * Average rating for this trainer
+     */
+    public function getAverageRating(): float
+    {
+        return round($this->ratings()->avg('rating') ?? 0, 1);
+    }
+
+    /**
+     * Client satisfaction percentage for the current month
+     * ✅ FIX: Uses created_at instead of removed 'month' column
+     */
+    public function getMonthlyClientSatisfaction(): float
+    {
+        $ratings = $this->ratings()
+            ->whereMonth('created_at', now()->month)
+            ->whereYear('created_at', now()->year)
+            ->get();
+
+        if ($ratings->isEmpty()) {
+            return 0;
+        }
+
+        $satisfied = $ratings->where('rating', '>=', 4)->count();
+        return round(($satisfied / $ratings->count()) * 100, 0);
     }
 }

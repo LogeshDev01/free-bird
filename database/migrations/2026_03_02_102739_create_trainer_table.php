@@ -44,6 +44,7 @@ return new class extends Migration
             // Emergency Contact
             $table->string('emergency_contact_person')->nullable();
             $table->string('emergency_phone')->nullable();
+            $table->string('bio')->nullable();
 
             $table->timestamps();
         });
@@ -54,6 +55,9 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::disableForeignKeyConstraints();
         Schema::dropIfExists('fb_tbl_trainer');
+        Schema::enableForeignKeyConstraints();
+        
     }
 };
