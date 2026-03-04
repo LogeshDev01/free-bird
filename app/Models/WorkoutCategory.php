@@ -10,16 +10,27 @@ class WorkoutCategory extends Model
     protected $table = 'fb_tbl_workout_category';
 
     protected $fillable = [
+        'workout_category_type_id',
         'name',
         'icon',
         'description',
         'is_active',
+        'minimum_plan_tier',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
     ];
 
+    public function workoutCategoryType()
+    {
+        return $this->belongsTo(WorkoutCategoryType::class, 'workout_category_type_id');
+    }
+
+    public function plan()
+    {
+        return $this->belongsTo(Plan::class, 'minimum_plan_tier');
+    }
     // ─── Relationships ─────────────────────────────────────
 
     public function workouts(): HasMany

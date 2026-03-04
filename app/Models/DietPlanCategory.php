@@ -14,6 +14,7 @@ class DietPlanCategory extends Model
         'icon',
         'description',
         'is_active',
+        'minimum_plan_tier',
     ];
 
     protected $casts = [

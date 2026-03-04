@@ -30,7 +30,7 @@ class ProfileController extends Controller
                 'message' => 'Profile fetched successfully',
                 'data'    => [
                     'id'                       => $trainer->id,
-                    'profile_pic'              => $trainer->profile_pic ? asset('storage/' . $trainer->profile_pic) : null,
+                    'profile_pic'              => $trainer->profile_pic,
                     'first_name'               => $trainer->first_name,
                     'last_name'                => $trainer->last_name,
                     'full_name'                => $trainer->full_name,
@@ -55,7 +55,7 @@ class ProfileController extends Controller
                     'emergency_contact_person' => $trainer->emergency_contact_person,
                     'emergency_phone'          => $trainer->emergency_phone,
                     'rating'                   => $trainer->getAverageRating(),
-                    'qr_code'                  => $trainer->qr_code ? asset('storage/' . $trainer->qr_code) : null,
+                    'qr_code'                  => $trainer->qr_code,
                     "bio"                      => $trainer->bio,
                 ],
             ], 200);
@@ -85,6 +85,21 @@ class ProfileController extends Controller
                 'full_name'               => 'sometimes|string|max:255',
                 'profile_pic'              => 'sometimes|image|mimes:jpeg,png,jpg|max:5120',
                 'bio'                      => 'sometimes|string|max:500',
+                'address'                  => 'sometimes|string|max:255',
+                'city'                     => 'sometimes|string|max:255',
+                'state'                    => 'sometimes|string|max:255',
+                'zip_code'                 => 'sometimes|string|max:255',
+                'country'                  => 'sometimes|string|max:255',
+                'specialization'           => 'sometimes|string|max:255',
+                'experience'               => 'sometimes|string|max:255',
+                'qualification'            => 'sometimes|string|max:255',
+                'joining_date'             => 'sometimes|string|max:255',
+                'monthly_salary'           => 'sometimes|string|max:255',
+                'shift'                    => 'sometimes|string|max:255',
+                'job_status'               => 'sometimes|string|max:255',
+                'status'                   => 'sometimes|string|max:255',
+                'emergency_contact_person' => 'sometimes|string|max:255',
+                'emergency_phone'          => 'sometimes|string|max:255',
             ]);
 
             if ($request->hasFile('profile_pic')) {
@@ -92,10 +107,15 @@ class ProfileController extends Controller
                 $validated['profile_pic'] = $path;
             }
             
-            $fullName = $request->full_name;
-            $validated['first_name'] = Str::before($fullName, ' ');
-            $validated['last_name'] = Str::after($fullName, ' ');
+            // Split full_name into first_name and last_name ONLY if provided
+            if ($request->has('full_name')) {
+                $fullName = $request->full_name;
+                $validated['first_name'] = Str::before($fullName, ' ');
+                $validated['last_name']  = Str::after($fullName, ' ');
+                unset($validated['full_name']); // Remove from validated as it's not a DB column
+            }
             
+            // The $validated array now contains only the fields passed in the request
             $trainer->update($validated);
 
             return response()->json([
@@ -135,8 +155,8 @@ class ProfileController extends Controller
             $trainer = auth('trainer')->user();
 
             // 🧺 Cleanup old profile picture if it exists to keep storage lean
-            if ($trainer->profile_pic) {
-                \Illuminate\Support\Facades\Storage::disk('public')->delete($trainer->profile_pic);
+            if ($trainer->getRawOriginal('profile_pic')) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($trainer->getRawOriginal('profile_pic'));
             }
 
             $path = $request->file('profile_pic')->store('profile_images', 'public');
@@ -147,7 +167,7 @@ class ProfileController extends Controller
                 'status'  => true,
                 'message' => 'Profile picture updated successfully',
                 'data'    => [
-                    'profile_pic' => asset('storage/' . $path),
+                    'profile_pic' => $trainer->profile_pic,
                 ],
             ], 200);
         } catch (\Illuminate\Validation\ValidationException $e) {

@@ -27,10 +27,15 @@ class Workout extends Model
         'reps',
         'rest_seconds',
         'is_active',
+        'lbs',
+        'kg',
+        'weight_unit',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'lbs' => 'decimal:2',
+        'kg' => 'decimal:2',
     ];
 
     // ─── Relationships ─────────────────────────────────────

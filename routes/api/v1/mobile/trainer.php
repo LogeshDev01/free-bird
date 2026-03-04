@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\v1\Mobile\Trainer\SlotController;
 use App\Http\Controllers\Api\v1\Mobile\Trainer\HistoryController;
 use App\Http\Controllers\Api\v1\Mobile\Trainer\TrainerController;
 use App\Http\Controllers\Api\v1\Mobile\WaterLogController;
+use App\Http\Controllers\Api\v1\Mobile\CommunityController;
 
 Route::prefix('trainer')->group(function () {
 
@@ -54,6 +55,7 @@ Route::prefix('trainer')->group(function () {
         // ── Sessions ───────────────────────────────────
         // ⚠️ Static routes BEFORE dynamic {id} routes
         Route::get('sessions/today', [SessionController::class, 'today']);
+        Route::get('sessions/upcoming', [SessionController::class, 'upcoming']);
         Route::get('sessions', [SessionController::class, 'index']);
         Route::post('sessions', [SessionController::class, 'store']);
         Route::put('sessions/{id}/status', [SessionController::class, 'updateStatus']);
@@ -64,6 +66,9 @@ Route::prefix('trainer')->group(function () {
         Route::get('workouts', [WorkoutController::class, 'index']);
         Route::get('workouts/{id}', [WorkoutController::class, 'show']);
         Route::post('workouts/assign', [WorkoutController::class, 'assign']);
+        Route::patch('workouts/assignments/{id}', [WorkoutController::class, 'updateAssignment']);
+        Route::delete('workouts/assignments/{id}', [WorkoutController::class, 'removeAssignment']);
+        Route::delete('workouts/batch/{batch_id}', [WorkoutController::class, 'removeBatchAssignment']);
 
         // ── Diet Plans Library ─────────────────────────
         // ⚠️ Static routes BEFORE dynamic {id} routes
@@ -92,5 +97,14 @@ Route::prefix('trainer')->group(function () {
         Route::post('water-logs', [WaterLogController::class, 'store']);
         Route::put('water-logs/goal', [WaterLogController::class, 'updateGoal']);
         Route::delete('water-logs/{id}', [WaterLogController::class, 'destroy']);
+
+        // ── Community ──────────────────────────────────
+        Route::get('community/categories', [CommunityController::class, 'categories']);
+        Route::get('community/posts', [CommunityController::class, 'index']);
+        Route::post('community/posts', [CommunityController::class, 'store']);
+        Route::post('community/posts/{id}/like', [CommunityController::class, 'toggleLike']);
+        Route::get('community/posts/{id}/comments', [CommunityController::class, 'getComments']);
+        Route::post('community/posts/{id}/comments', [CommunityController::class, 'comment']);
+        Route::post('community/posts/{id}/share', [CommunityController::class, 'share']);
     });
 });

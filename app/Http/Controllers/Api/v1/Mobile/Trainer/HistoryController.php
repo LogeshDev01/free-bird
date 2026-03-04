@@ -72,7 +72,7 @@ class HistoryController extends Controller
                 return [
                     'id'               => $session->id,
                     'client_name'      => $session->client->full_name,
-                    'client_photo'     => $session->client->profile_pic ? asset('storage/' . $session->client->profile_pic) : null,
+                    'client_photo'     => $session->client->profile_pic,
                     'session_type'     => $session->slot && $session->slot->type ? $session->slot->type->name : 'General Session',
                     'start_time'       => Carbon::parse($session->start_time)->format('g:i A'),
                     'end_time'         => Carbon::parse($session->end_time)->format('g:i A'),

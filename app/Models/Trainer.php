@@ -73,6 +73,22 @@ class Trainer extends Authenticatable implements JWTSubject
         return trim($this->first_name . ' ' . $this->last_name);
     }
 
+    /**
+     * Get the full URL for the profile picture
+     */
+    public function getProfilePicAttribute($value): ?string
+    {
+        return $value ? asset('storage/' . $value) : null;
+    }
+
+    /**
+     * Get the full URL for the QR code
+     */
+    public function getQrCodeAttribute($value): ?string
+    {
+        return $value ? asset('storage/' . $value) : null;
+    }
+
     // ─── JWT ───────────────────────────────────────────────
 
     public function getJWTIdentifier()

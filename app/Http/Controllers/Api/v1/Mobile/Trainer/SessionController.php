@@ -227,4 +227,97 @@ class SessionController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * GET /api/v1/mobile/trainer/sessions/upcoming
+     * Scale for next 7 days from today
+     */
+    public function upcoming(): JsonResponse
+    {
+        try {
+            $trainer = auth('trainer')->user();
+            $today = Carbon::today();
+            $endDate = $today->copy()->addDays(6);
+
+            // Fetch sessions with related client goals and assignments (per date)
+            $sessions = $trainer->sessions()
+                ->with([
+                    'client:id,first_name,last_name,profile_pic,goal,city',
+                    'client.workoutAssignments' => function($q) use ($today, $endDate) {
+                        $q->whereBetween('assigned_date', [$today, $endDate]);
+                    },
+                    'client.dietPlanAssignments' => function($q) use ($today, $endDate) {
+                        $q->whereBetween('assigned_date', [$today, $endDate]);
+                    }
+                ])
+                ->where('session_date', '>=', $today)
+                ->where('session_date', '<=', $endDate)
+                ->where('status', Session::STATUS_SCHEDULED)
+                ->orderBy('session_date', 'asc')
+                ->orderBy('start_time', 'asc')
+                ->get();
+
+            // Calculate Summary Data
+            $uniqueClients = $sessions->pluck('client_id')->unique()->count();
+            $totalMinutes = 0;
+            foreach ($sessions as $s) {
+                $start = Carbon::parse($s->start_time);
+                $end = Carbon::parse($s->end_time);
+                $totalMinutes += $start->diffInMinutes($end);
+            }
+
+            $summary = [
+                'total_sessions' => $sessions->count(),
+                'total_clients'  => $uniqueClients,
+                'total_hours'    => round($totalMinutes / 60, 1) . 'h',
+            ];
+
+            // Group by Date for the Scale
+            $schedule = $sessions->groupBy(fn($s) => $s->session_date->format('Y-m-d'))
+                ->map(function($daySessions, $date) {
+                    $dt = Carbon::parse($date);
+                    return [
+                        'date'          => $date,
+                        'day_label'     => $dt->isToday() ? 'Today' : ($dt->isTomorrow() ? 'Tomorrow' : $dt->format('l')),
+                        'date_display'  => $dt->format('D , M j'), // e.g., Tue , Dec 2
+                        'day_short'     => $dt->format('D'), // e.g., T
+                        'day_number'    => $dt->format('d'), // e.g., 23
+                        'month_year'    => $dt->format('F Y'), // e.g., December 2028
+                        'session_count' => $daySessions->count(),
+                        'items'         => $daySessions->map(function($s) {
+                            return [
+                                'id'         => $s->id,
+                                'start_time' => Carbon::parse($s->start_time)->format('g:i A'),
+                                'end_time'   => Carbon::parse($s->end_time)->format('g:i A'),
+                                'location'   => $s->location ?? $s->client->city ?? 'Remote',
+                                'client'     => [
+                                    'id'          => $s->client->id,
+                                    'full_name'   => $s->client->full_name,
+                                    'profile_pic' => $s->client->profile_pic,
+                                    'goal'        => $s->client->goal ?? 'Fitness',
+                                ],
+                                // Indicators for arm/bowl icons in UI
+                                'is_workout_day' => $s->client->workoutAssignments->where('assigned_date', $s->session_date)->isNotEmpty(),
+                                'is_diet_day'    => $s->client->dietPlanAssignments->where('assigned_date', $s->session_date)->isNotEmpty(),
+                            ];
+                        })
+                    ];
+                });
+
+            return response()->json([
+                'status'  => true,
+                'message' => 'Upcoming schedule scale fetched',
+                'data'    => [
+                    'summary'  => $summary,
+                    'schedule' => $schedule->values(), // Ordered list
+                ],
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error('Upcoming scale failed', ['error' => $e->getMessage()]);
+            return response()->json([
+                'status'  => false,
+                'message' => 'Could not fetch scale',
+            ], 500);
+        }
+    }
 }

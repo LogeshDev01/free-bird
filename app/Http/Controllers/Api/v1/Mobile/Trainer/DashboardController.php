@@ -37,13 +37,13 @@ class DashboardController extends Controller
             // ── 1. Trainer Profile ──────────────────────────────
             $profile = [
                 'id'             => $trainer->id,
-                'profile_pic'    => $trainer->profile_pic ? asset('storage/profile_pic/' . $trainer->profile_pic) : null,
+                'profile_pic'    => $trainer->profile_pic,
                 'first_name'     => $trainer->first_name,
                 'last_name'      => $trainer->last_name,
                 'full_name'      => $trainer->full_name,
                 'specialization' => $trainer->specialization,
                 'rating'         => $trainer->getAverageRating(),
-                'qr_code'        => $trainer->qr_code ? asset('storage/qr_code/' . $trainer->qr_code) : null,
+                'qr_code'        => $trainer->qr_code,
             ];
 
             // ── 2. Dashboard Stats Cards ────────────────────────
@@ -80,7 +80,7 @@ class DashboardController extends Controller
                     'client:id,first_name,last_name,profile_pic',
                     'client.workoutAssignments' => function ($q) {
                         $q->where('status', '!=', WorkoutAssignment::STATUS_COMPLETED)
-                          ->with('workout.category:id,name');
+                          ->with('workout.category.workoutCategoryType');
                     },
                     'client.dietPlanAssignments' => function ($q) {
                         $q->where('status', '!=', DietPlanAssignment::STATUS_COMPLETED)
@@ -111,7 +111,7 @@ class DashboardController extends Controller
                         'session_id'   => $session->id,
                         'client_id'    => $client->id,
                         'client_name'  => $client->full_name,
-                        'profile_pic'  => $client->profile_pic ? asset('storage/profile_pic/' . $client->profile_pic) : null,
+                        'profile_pic'  => $client->profile_pic,
                         'start_time'   => Carbon::parse($session->start_time)->format('g:i A'),
                         'end_time'     => Carbon::parse($session->end_time)->format('g:i A'),
                         'location'     => $session->location,

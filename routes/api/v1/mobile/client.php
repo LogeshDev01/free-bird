@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\v1\Mobile\WaterLogController;
+use App\Http\Controllers\Api\v1\Mobile\CommunityController;
 
 Route::prefix('client')->group(function () {
 
@@ -18,6 +19,15 @@ Route::prefix('client')->group(function () {
         Route::post('water-logs', [WaterLogController::class, 'store']);
         Route::put('water-logs/goal', [WaterLogController::class, 'updateGoal']);
         Route::delete('water-logs/{id}', [WaterLogController::class, 'destroy']);
+
+        // ── Community ──────────────────────────────────
+        Route::get('community/categories', [CommunityController::class, 'categories']);
+        Route::get('community/posts', [CommunityController::class, 'index']);
+        Route::post('community/posts', [CommunityController::class, 'store']);
+        Route::post('community/posts/{id}/like', [CommunityController::class, 'toggleLike']);
+        Route::get('community/posts/{id}/comments', [CommunityController::class, 'getComments']);
+        Route::post('community/posts/{id}/comments', [CommunityController::class, 'comment']);
+        Route::post('community/posts/{id}/share', [CommunityController::class, 'share']);
 
     });
 });

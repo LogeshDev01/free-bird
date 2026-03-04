@@ -27,7 +27,7 @@ class TrainerController extends Controller
             // ── 1. Employment Card ────────────────────────────
             $employment = [
                 'id'             => $trainer->id,
-                'profile_pic'    => $trainer->profile_pic ? asset('storage/' . $trainer->profile_pic) : null,
+                'profile_pic'    => $trainer->profile_pic,
                 'full_name'      => $trainer->full_name,
                 'emp_id'         => $trainer->emp_id,
                 'current_status' => $trainer->job_status,

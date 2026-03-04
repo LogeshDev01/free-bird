@@ -30,7 +30,10 @@ class ClientController extends Controller
         try {
             $trainer = auth('trainer')->user();
 
-            $query = $trainer->clients();
+            $query = $trainer->clients()->with([
+                'currentSubscription.plan.features.feature',
+                'currentSubscription.usages'
+            ]);
 
             // Filter by status
             if ($request->has('status')) {
@@ -51,7 +54,7 @@ class ClientController extends Controller
             return response()->json([
                 'status'  => true,
                 'message' => 'Clients fetched successfully',
-                'data'    => $clients,
+                'data'    => \App\Http\Resources\Api\v1\Trainer\ClientResource::collection($clients)->response()->getData(true),
             ], 200);
         } catch (\Exception $e) {
             Log::error('Client list failed', [
@@ -75,7 +78,10 @@ class ClientController extends Controller
         try {
             $trainer = auth('trainer')->user();
 
-            $client = $trainer->clients()->where('fb_tbl_client.id', $id)->first();
+            $client = $trainer->clients()->with([
+                'currentSubscription.plan.features.feature',
+                'currentSubscription.usages'
+            ])->where('fb_tbl_client.id', $id)->first();
 
             if (!$client) {
                 return response()->json([
@@ -87,7 +93,7 @@ class ClientController extends Controller
             // Enrich with assignments
             $client->load([
                 'workoutAssignments' => function ($q) {
-                    $q->with('workout.category')->latest()->limit(10);
+                    $q->with('workout.category.workoutCategoryType')->latest()->limit(10);
                 },
                 'dietPlanAssignments' => function ($q) {
                     $q->with('dietPlan.category')->latest()->limit(10);
@@ -98,7 +104,7 @@ class ClientController extends Controller
                 'status'  => true,
                 'message' => 'Client details fetched successfully',
                 'data'    => [
-                    'client' => $client,
+                    'client' => new \App\Http\Resources\Api\v1\Trainer\ClientResource($client),
                     'stats'  => [
                         'goal'   => $client->goal,
                         'age'    => $client->dob ? Carbon::parse($client->dob)->age : null,
@@ -137,12 +143,13 @@ class ClientController extends Controller
                     'client:id,first_name,last_name,profile_pic,goal',
                     'client.workoutAssignments' => function ($q) {
                         $q->where('status', '!=', WorkoutAssignment::STATUS_COMPLETED)
-                          ->with('workout.category:id,name');
+                          ->with('workout.category.workoutCategoryType');
                     },
                     'client.dietPlanAssignments' => function ($q) {
                         $q->where('status', '!=', DietPlanAssignment::STATUS_COMPLETED)
                           ->with('dietPlan.category:id,name');
                     },
+                    'client.currentSubscription.plan'
                 ])
                 ->where('session_date', $today)
                 ->where('status', Session::STATUS_SCHEDULED)
@@ -164,6 +171,15 @@ class ClientController extends Controller
                         ->unique()
                         ->values();
 
+                    // Format Subscription Data manually for this map
+                    $subscriptionData = null;
+                    if ($client->currentSubscription && $client->currentSubscription->status === 'active') {
+                        $subscriptionData = [
+                            'plan_slug' => $client->currentSubscription->plan->slug ?? 'unknown',
+                            'status' => $client->currentSubscription->status
+                        ];
+                    }
+
                     return [
                         'session_id'   => $session->id,
                         'client_id'    => $client->id,
@@ -175,6 +191,7 @@ class ClientController extends Controller
                         'status'       => $session->status,
                         'workout_tags' => $workoutTags,
                         'diet_tags'    => $dietTags,
+                        'subscription' => $subscriptionData,
                     ];
                 });
 

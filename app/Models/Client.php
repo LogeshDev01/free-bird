@@ -38,6 +38,7 @@ class Client extends Authenticatable
         'emergency_contact_person',
         'emergency_phone',
         'status',
+        'current_subscription_id',
     ];
 
     protected $hidden = [
@@ -60,6 +61,14 @@ class Client extends Authenticatable
     public function getFullNameAttribute(): string
     {
         return trim($this->first_name . ' ' . $this->last_name);
+    }
+
+    /**
+     * Get the full URL for the profile picture
+     */
+    public function getProfilePicAttribute($value): ?string
+    {
+        return $value ? asset('storage/' . $value) : null;
     }
 
     // ─── Relationships ────────────────────────────────────
@@ -102,5 +111,10 @@ class Client extends Authenticatable
     public function waterDailyLogs(): MorphMany
     {
         return $this->morphMany(WaterDailyLog::class, 'loggable');
+    }
+
+    public function currentSubscription(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(ClientSubscription::class, 'current_subscription_id');
     }
 }
