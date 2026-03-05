@@ -40,6 +40,11 @@ class Workout extends Model
 
     // ─── Relationships ─────────────────────────────────────
 
+    public function getImageAttribute($value)
+    {
+        return $value ? asset('storage/' . $value) : null;
+    }
+
     public function category(): BelongsTo
     {
         return $this->belongsTo(WorkoutCategory::class, 'category_id');

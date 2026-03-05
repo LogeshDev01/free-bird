@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use PHPOpenSourceSaver\JWTAuth\Contracts\JWTSubject;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
@@ -35,8 +36,6 @@ class Trainer extends Authenticatable implements JWTSubject
         'phone',
         'email',
         'address',
-        'city',
-        'state',
         'zip_code',
         'country',
 
@@ -54,12 +53,13 @@ class Trainer extends Authenticatable implements JWTSubject
         'emergency_contact_person',
         'emergency_phone',
 
-        'password',
         'bio',
+        'state_id',
+        'city_id',
+        'zone_id',
     ];
 
     protected $hidden = [
-        'password',
         'created_at',
         'updated_at',
     ];
@@ -207,6 +207,21 @@ class Trainer extends Authenticatable implements JWTSubject
     public function statusHistory(): HasMany
     {
         return $this->hasMany(TrainerStatusHistory::class, 'trainer_id');
+    }
+
+    public function state(): BelongsTo
+    {
+        return $this->belongsTo(State::class, 'state_id');
+    }
+
+    public function city(): BelongsTo
+    {
+        return $this->belongsTo(City::class, 'city_id');
+    }
+
+    public function zone(): BelongsTo
+    {
+        return $this->belongsTo(Zone::class, 'zone_id');
     }
 
     // ─── Helper Methods ────────────────────────────────────

@@ -13,7 +13,9 @@ class WorkoutCategory extends Model
         'workout_category_type_id',
         'name',
         'icon',
+        'image',
         'description',
+        'duration',
         'is_active',
         'minimum_plan_tier',
     ];
@@ -22,6 +24,10 @@ class WorkoutCategory extends Model
         'is_active' => 'boolean',
     ];
 
+    public function getImageAttribute($value)
+    {
+        return $value ? asset('storage/' . $value) : null;
+    }
     public function workoutCategoryType()
     {
         return $this->belongsTo(WorkoutCategoryType::class, 'workout_category_type_id');

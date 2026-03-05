@@ -21,20 +21,49 @@ class WorkoutController extends Controller
 
     /**
      * GET /api/v1/mobile/trainer/workouts/categories
-     * List all workout categories
+     * List all workout categories formatted for UI (Assign Workouts screen)
      */
-    public function categories(): JsonResponse
+    public function categories(Request $request): JsonResponse
     {
         try {
-            $categories = WorkoutCategory::where('is_active', true)
-                ->with('workoutCategoryType')
-                ->withCount('workouts')
-                ->get();
+            $query = WorkoutCategory::where('is_active', true)
+                ->with('workoutCategoryType:id,name');
+
+            // ✅ Search functionality
+            if ($request->has('search') && $request->search !== '') {
+                $search = str_replace(['%', '_'], ['\\%', '\\_'], $request->search);
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'LIKE', "%{$search}%")
+                      ->orWhereHas('workoutCategoryType', function ($tq) use ($search) {
+                          $tq->where('name', 'LIKE', "%{$search}%");
+                      });
+                });
+            }
+
+            $categories = $query->paginate($request->get('per_page', 20));
+
+            $formattedCategories = collect($categories->items())->map(function ($cat) {
+                return [
+                    'id'       => $cat->id,
+                    'title'    => $cat->name,
+                    'tag'      => $cat->workoutCategoryType->name ?? 'General',
+                    'duration' => $cat->duration ? $cat->duration . ' Duration' : '00:00:00 Duration',
+                    'image'    => $cat->image,
+                ];
+            });
 
             return response()->json([
                 'status'  => true,
                 'message' => 'Workout categories fetched successfully',
-                'data'    => $categories,
+                'data'    => [
+                    'list' => $formattedCategories,
+                    'meta' => [
+                        'current_page' => $categories->currentPage(),
+                        'last_page'    => $categories->lastPage(),
+                        'total'        => $categories->total(),
+                        'per_page'     => $categories->perPage(),
+                    ]
+                ],
             ], 200);
         } catch (\Exception $e) {
             Log::error('Workout categories failed', ['error' => $e->getMessage()]);
@@ -48,23 +77,19 @@ class WorkoutController extends Controller
 
     /**
      * GET /api/v1/mobile/trainer/workouts
-     * List workouts with optional category filter
+     * List workouts with optional category filter, optimized for mobile UI
      */
     public function index(Request $request): JsonResponse
-    {
+    { 
         try {
-            $query = Workout::with('category.workoutCategoryType')
-                ->where('is_active', true);
+            $query = Workout::where('is_active', true)
+                ->select(['id', 'category_id', 'name', 'image', 'sets', 'reps', 'lbs', 'rest_seconds', 'muscle_group']);
 
             if ($request->has('category_id')) {
                 $query->where('category_id', $request->category_id);
             }
 
-            if ($request->has('difficulty')) {
-                $query->where('difficulty', $request->difficulty);
-            }
-
-            // ✅ FIX: Sanitize LIKE wildcards
+            // ✅ Enhanced Search functionality
             if ($request->has('search') && $request->search !== '') {
                 $search = str_replace(['%', '_'], ['\\%', '\\_'], $request->search);
                 $query->where(function ($q) use ($search) {
@@ -76,10 +101,33 @@ class WorkoutController extends Controller
             $workouts = $query->orderBy('name')
                               ->paginate($request->get('per_page', 20));
 
+            // Format for UI (consistent keys)
+            $formattedWorkouts = collect($workouts->items())->map(function ($w) {
+                return [
+                    'id'            => $w->id,
+                    'name'          => $w->name,
+                    'thumbnail'     => $w->image,
+                    'sets'          => $w->sets,
+                    'reps'          => $w->reps,
+                    'lbs'           => $w->lbs,
+                    'kg'            => $w->kg,
+                    'rest'          => $w->rest_seconds . 's',
+                    'duration'      => $w->duration_minutes,
+                    'muscle_group'  => $w->muscle_group,
+                ];
+            });
+
             return response()->json([
                 'status'  => true,
                 'message' => 'Workouts fetched successfully',
-                'data'    => $workouts,
+                'data'    => [
+                    'list' => $formattedWorkouts,
+                    'meta' => [
+                        'current_page' => $workouts->currentPage(),
+                        'last_page'    => $workouts->lastPage(),
+                        'total'        => $workouts->total(),
+                    ]
+                ],
             ], 200);
         } catch (\Exception $e) {
             Log::error('Workout list failed', ['error' => $e->getMessage()]);
@@ -123,86 +171,130 @@ class WorkoutController extends Controller
         }
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | 📋 WORKOUT ASSIGNMENT APIs
+    |--------------------------------------------------------------------------
+    |
+    | assign()               POST   /workouts/assign
+    | updateAssignment()     PATCH  /workouts/assignments/{id}
+    | removeAssignment()     DELETE /workouts/assignments/{id}
+    | removeBatchAssignment() DELETE /workouts/batch/{batch_id}
+    |
+    */
+
     /**
      * POST /api/v1/mobile/trainer/workouts/assign
-     * Assign workout(s) to a client with custom sets/reps
+     *
+     * Robust multi-client, multi-date assignment.
+     *
+     * Payload shape:
+     * {
+     *   "client_ids":     [12, 34, 56],          // one or many
+     *   "assigned_dates": ["2026-03-05", "2026-03-06"],  // one or many dates
+     *   "due_date":       "2026-03-12",           // optional
+     *   "notes":          "Focus on form",        // optional
+     *   "assignments": [
+     *     {
+     *       "category_id": 1,
+     *       "workout_id":  10,
+     *       "custom_sets": [
+     *         { "set": 1, "reps": 12, "lbs": 45, "kg": 20.4, "rest": 30, "duration": 60 }
+     *       ]
+     *     }
+     *   ]
+     * }
+     *
+     * Creates: (clients × dates × workouts) rows sharing a single batch_id.
      */
     public function assign(Request $request): JsonResponse
     {
         try {
             $trainer = auth('trainer')->user();
 
+            // ── Validation ────────────────────────────────────────────────────
             $validated = $request->validate([
-                'client_id'     => 'required|exists:fb_tbl_client,id',
-                'assigned_date' => 'required|date',
-                'due_date'      => 'nullable|date|after_or_equal:assigned_date',
-                'notes'         => 'nullable|string|max:1000',
-                // Support both single workout_id and a list of assignments
-                'category_id'   => 'required_without:assignments|exists:fb_tbl_workout_category,id',
-                'workout_id'    => 'required_without:assignments|exists:fb_tbl_workout,id',
-                'custom_sets'   => 'nullable|array', // For single workout_id
-                'assignments'   => 'nullable|array', // For batch assignment
-                'assignments.*.category_id' => 'required_with:assignments|exists:fb_tbl_workout_category,id',
-                'assignments.*.workout_id'  => 'required_with:assignments|exists:fb_tbl_workout,id',
-                'assignments.*.custom_sets' => 'nullable|array',
+                'client_ids'                        => 'required|array|min:1',
+                'client_ids.*'                      => 'required|integer|exists:fb_tbl_client,id',
+                'assigned_dates'                    => 'required|array|min:1',
+                'assigned_dates.*'                  => 'required|date',
+                'due_date'                          => 'nullable|date',
+                'notes'                             => 'nullable|string|max:1000',
+                'assignments'                       => 'required|array|min:1',
+                'assignments.*.category_id'         => 'required|exists:fb_tbl_workout_category,id',
+                'assignments.*.workout_id'          => 'required|exists:fb_tbl_workout,id',
+                'assignments.*.custom_sets'         => 'nullable|array',
+                'assignments.*.custom_sets.*.set'      => 'nullable|integer|min:1',
+                'assignments.*.custom_sets.*.reps'     => 'nullable|integer|min:0',
+                'assignments.*.custom_sets.*.lbs'      => 'nullable|numeric|min:0',
+                'assignments.*.custom_sets.*.kg'       => 'nullable|numeric|min:0',
+                'assignments.*.custom_sets.*.rest'     => 'nullable|integer|min:0',
+                'assignments.*.custom_sets.*.duration' => 'nullable|integer|min:0',
             ]);
 
-            // Verify client belongs to trainer
-            $isAssigned = $trainer->clients()
-                ->where('fb_tbl_client.id', $validated['client_id'])
+            // ── Verify ALL clients belong to this trainer ──────────────────────
+            $trainerClientIds = $trainer->clients()
                 ->wherePivot('status', Trainer::CLIENT_ACTIVE)
-                ->exists();
+                ->pluck('fb_tbl_client.id')
+                ->toArray();
 
-            if (!$isAssigned) {
+            $invalidClients = array_diff($validated['client_ids'], $trainerClientIds);
+            if (!empty($invalidClients)) {
                 return response()->json([
                     'status'  => false,
-                    'message' => 'Client not assigned to you',
+                    'message' => 'One or more clients are not assigned to you.',
+                    'invalid_client_ids' => array_values($invalidClients),
                 ], 403);
             }
 
-            $createdAssignments = [];
+            // ── Build rows inside a transaction ───────────────────────────────
             $batchId = (string) \Illuminate\Support\Str::uuid();
+            $createdCount = 0;
+            $createdAssignments = [];
 
-            // Case A: Batch Assignments
-            if ($request->has('assignments')) {
-                foreach ($validated['assignments'] as $item) {
-                    $createdAssignments[] = WorkoutAssignment::create([
-                        'trainer_id'       => $trainer->id,
-                        'assigned_by_id'   => $trainer->id,
-                        'assigned_by_type' => Trainer::class,
-                        'batch_id'         => $batchId,
-                        'client_id'        => $validated['client_id'],
-                        'category_id'      => $item['category_id'],
-                        'workout_id'       => $item['workout_id'],
-                        'custom_sets'      => $item['custom_sets'] ?? null,
-                        'assigned_date'    => $validated['assigned_date'],
-                        'due_date'         => $validated['due_date'] ?? null,
-                        'notes'            => $validated['notes'] ?? null,
-                    ]);
+            \Illuminate\Support\Facades\DB::transaction(function () use (
+                $validated, $trainer, $batchId, &$createdCount, &$createdAssignments
+            ) {
+                foreach ($validated['client_ids'] as $clientId) {
+                    foreach ($validated['assigned_dates'] as $assignedDate) {
+                        foreach ($validated['assignments'] as $item) {
+                            // ── Auto-calculate total duration from this workout's custom_sets ──
+                            $totalDuration = $this->calculateDuration($item['custom_sets'] ?? []);
+
+                            $row = WorkoutAssignment::create([
+                                'trainer_id'       => $trainer->id,
+                                'assigned_by_id'   => $trainer->id,
+                                'assigned_by_type' => Trainer::class,
+                                'batch_id'         => $batchId,
+                                'client_id'        => $clientId,
+                                'category_id'      => $item['category_id'],
+                                'workout_id'       => $item['workout_id'],
+                                'custom_sets'      => $item['custom_sets'] ?? null,
+                                'duration'         => $totalDuration,
+                                'assigned_date'    => $assignedDate,
+                                'due_date'         => $validated['due_date'] ?? null,
+                                'notes'            => $validated['notes'] ?? null,
+                                'status'           => WorkoutAssignment::STATUS_PENDING,
+                            ]);
+                            $createdAssignments[] = $row->id;
+                            $createdCount++;
+                        }
+                    }
                 }
-            } 
-            // Case B: Single Assignment
-            else {
-                $createdAssignments[] = WorkoutAssignment::create([
-                    'trainer_id'       => $trainer->id,
-                    'assigned_by_id'   => $trainer->id,
-                    'assigned_by_type' => Trainer::class,
-                    'batch_id'         => $batchId,
-                    'client_id'        => $validated['client_id'],
-                    'category_id'      => $validated['category_id'],
-                    'workout_id'       => $validated['workout_id'],
-                    'custom_sets'      => $validated['custom_sets'] ?? null,
-                    'assigned_date'    => $validated['assigned_date'],
-                    'due_date'         => $validated['due_date'] ?? null,
-                    'notes'            => $validated['notes'] ?? null,
-                ]);
-            }
+            });
 
             return response()->json([
-                'status'  => true,
-                'message' => 'Workout(s) assigned successfully',
-                'data'    => $createdAssignments,
+                'status'   => true,
+                'message'  => "Successfully assigned {$createdCount} workout(s) across "
+                              . count($validated['client_ids']) . " client(s) and "
+                              . count($validated['assigned_dates']) . " date(s).",
+                'data'     => [
+                    'batch_id'          => $batchId,
+                    'total_assignments' => $createdCount,
+                    'assignment_ids'    => $createdAssignments,
+                ],
             ], 201);
+
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'status'  => false,
@@ -213,8 +305,8 @@ class WorkoutController extends Controller
             Log::error('Workout assign failed', [
                 'trainer_id' => auth('trainer')->id(),
                 'error'      => $e->getMessage(),
+                'trace'      => $e->getTraceAsString(),
             ]);
-
             return response()->json([
                 'status'  => false,
                 'message' => 'Something went wrong. Please try again.',
@@ -224,23 +316,29 @@ class WorkoutController extends Controller
 
     /**
      * PATCH /api/v1/mobile/trainer/workouts/assignments/{id}
-     * Update custom sets or notes of an existing assignment
+     *
+     * Update a single assignment. Supports enriched custom_sets with
+     * set/reps/lbs/kg/rest/duration per set and date changes.
+     *
+     * Guards:
+     *   - Trainer must own the assignment
+     *   - Blocked if status = STATUS_COMPLETED
      */
     public function updateAssignment(Request $request, $id): JsonResponse
     {
         try {
-            $trainer = auth('trainer')->user();
+            $trainer    = auth('trainer')->user();
             $assignment = WorkoutAssignment::findOrFail($id);
 
-            // Security: Ensure the assignment belongs to this trainer
-            if ($assignment->trainer_id !== $trainer->id) {
+            // ── Ownership check ───────────────────────────────────────────────
+            if ((int)$assignment->trainer_id !== (int)$trainer->id) {
                 return response()->json([
                     'status'  => false,
                     'message' => 'Unauthorized. This assignment does not belong to you.',
                 ], 403);
             }
 
-            // Prevent editing if already completed
+            // ── Block completed assignments ────────────────────────────────────
             if ($assignment->status === WorkoutAssignment::STATUS_COMPLETED) {
                 return response()->json([
                     'status'  => false,
@@ -248,43 +346,73 @@ class WorkoutController extends Controller
                 ], 400);
             }
 
+            // ── Validation ────────────────────────────────────────────────────
             $validated = $request->validate([
-                'category_id'   => 'nullable|exists:fb_tbl_workout_category,id',
-                'workout_id'    => 'nullable|exists:fb_tbl_workout,id',
-                'custom_sets'   => 'nullable|array',
-                'notes'         => 'nullable|string|max:1000',
-                'due_date'      => 'nullable|date',
-                'assigned_date' => 'nullable|date',
+                'category_id'              => 'nullable|exists:fb_tbl_workout_category,id',
+                'workout_id'               => 'nullable|exists:fb_tbl_workout,id',
+                'assigned_date'            => 'nullable|date',
+                'due_date'                 => 'nullable|date',
+                'notes'                    => 'nullable|string|max:1000',
+                'status'                   => 'nullable|integer|in:0,1,2,3',
+                'custom_sets'              => 'nullable|array',
+                'custom_sets.*.set'        => 'nullable|integer|min:1',
+                'custom_sets.*.reps'       => 'nullable|integer|min:0',
+                'custom_sets.*.lbs'        => 'nullable|numeric|min:0',
+                'custom_sets.*.kg'         => 'nullable|numeric|min:0',
+                'custom_sets.*.rest'       => 'nullable|integer|min:0',
+                'custom_sets.*.duration'   => 'nullable|integer|min:0',
             ]);
 
-            $assignment->update($validated);
+            // ── Re-calculate duration if custom_sets are being updated ─────────
+            $updatePayload = array_filter($validated, fn($v) => $v !== null);
+            if (isset($validated['custom_sets'])) {
+                $updatePayload['duration'] = $this->calculateDuration($validated['custom_sets']);
+            }
+
+            $assignment->update($updatePayload);
 
             return response()->json([
                 'status'  => true,
-                'message' => 'Workout assignment updated successfully',
-                'data'    => $assignment,
+                'message' => 'Workout assignment updated successfully.',
+                'data'    => $assignment->fresh(),
             ], 200);
-        } catch (\Exception $e) {
-            Log::error('Workout assignment update failed', ['error' => $e->getMessage()]);
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'status'  => false,
-                'message' => 'Update failed: ' . $e->getMessage(),
+                'message' => 'Assignment not found.',
+            ], 404);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'Validation failed',
+                'errors'  => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Workout assignment update failed', [
+                'assignment_id' => $id,
+                'trainer_id'    => auth('trainer')->id(),
+                'error'         => $e->getMessage(),
+            ]);
+            return response()->json([
+                'status'  => false,
+                'message' => 'Update failed. Please try again.',
             ], 500);
         }
     }
 
     /**
      * DELETE /api/v1/mobile/trainer/workouts/assignments/{id}
-     * Remove a workout assignment
+     * Remove a single workout assignment.
      */
     public function removeAssignment($id): JsonResponse
     {
         try {
-            $trainer = auth('trainer')->user();
+            $trainer    = auth('trainer')->user();
             $assignment = WorkoutAssignment::findOrFail($id);
 
-            // Security: Ensure the assignment belongs to this trainer
-            if ($assignment->trainer_id !== $trainer->id) {
+            // ── Ownership check ───────────────────────────────────────────────
+            if ((int)$assignment->trainer_id !== (int)$trainer->id) {
                 return response()->json([
                     'status'  => false,
                     'message' => 'Unauthorized. This assignment does not belong to you.',
@@ -295,26 +423,36 @@ class WorkoutController extends Controller
 
             return response()->json([
                 'status'  => true,
-                'message' => 'Workout assignment removed successfully',
+                'message' => 'Workout assignment removed successfully.',
             ], 200);
-        } catch (\Exception $e) {
-            Log::error('Workout assignment delete failed', ['error' => $e->getMessage()]);
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'status'  => false,
-                'message' => 'Deletion failed: ' . $e->getMessage(),
+                'message' => 'Assignment not found.',
+            ], 404);
+        } catch (\Exception $e) {
+            Log::error('Workout assignment delete failed', [
+                'assignment_id' => $id,
+                'trainer_id'    => auth('trainer')->id(),
+                'error'         => $e->getMessage(),
+            ]);
+            return response()->json([
+                'status'  => false,
+                'message' => 'Deletion failed. Please try again.',
             ], 500);
         }
     }
 
     /**
      * DELETE /api/v1/mobile/trainer/workouts/batch/{batch_id}
-     * Remove an entire batch of assignments (a session)
+     * Remove ALL assignments belonging to a batch (entire session).
      */
     public function removeBatchAssignment($batchId): JsonResponse
     {
         try {
             $trainer = auth('trainer')->user();
-            
+
             $deletedCount = WorkoutAssignment::where('batch_id', $batchId)
                 ->where('trainer_id', $trainer->id)
                 ->delete();
@@ -328,14 +466,36 @@ class WorkoutController extends Controller
 
             return response()->json([
                 'status'  => true,
-                'message' => "Successfully removed {$deletedCount} workouts from the session.",
+                'message' => "Successfully removed {$deletedCount} workout assignment(s) from the session.",
+                'data'    => ['deleted_count' => $deletedCount],
             ], 200);
+
         } catch (\Exception $e) {
-            Log::error('Batch delete failed', ['error' => $e->getMessage()]);
+            Log::error('Batch assignment delete failed', [
+                'batch_id'   => $batchId,
+                'trainer_id' => auth('trainer')->id(),
+                'error'      => $e->getMessage(),
+            ]);
             return response()->json([
                 'status'  => false,
-                'message' => 'Batch deletion failed.',
+                'message' => 'Batch deletion failed. Please try again.',
             ], 500);
         }
+    }
+
+    // ─── Private Helpers ─────────────────────────────────────────────────────
+
+    /**
+     * Sum the `duration` field (seconds) across all sets in a custom_sets array.
+     *
+     * Each item looks like: { set, reps, lbs, kg, rest, duration }
+     * Returns 0 when custom_sets is empty or no duration values are provided.
+     *
+     * @param  array $customSets
+     * @return int   Total duration in seconds
+     */
+    private function calculateDuration(array $customSets): int
+    {
+        return (int) collect($customSets)->sum(fn($set) => (int) ($set['duration'] ?? 0));
     }
 }

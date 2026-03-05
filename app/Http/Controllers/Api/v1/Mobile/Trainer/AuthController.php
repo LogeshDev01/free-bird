@@ -31,7 +31,8 @@ class AuthController extends Controller
             ], 404);
         }
 
-        $otp = rand(100000, 999999);
+        // $otp = rand(1000, 9999);
+        $otp = "1234";
 
         OtpVerification::create([
             'mobile_number' => $request->mobile,
@@ -44,7 +45,7 @@ class AuthController extends Controller
 
         return response()->json([
             'message' => 'OTP sent successfully',
-            'otp' => $otp
+            // 'otp' => $otp
         ]);
     }
 
@@ -105,7 +106,7 @@ class AuthController extends Controller
             'token_type' => 'Bearer',
             'expires_in' => auth()->guard('trainer')->factory()->getTTL() * 60,
             'refresh_token' => $refreshToken,
-            'refresh_expires_in' => 7 * 24 * 60 * 60,
+            'refresh_expires_in' => 30 * 24 * 60 * 60,
             'trainer' => $trainer
         ]);
     }

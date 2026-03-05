@@ -30,11 +30,12 @@ Route::prefix('trainer')->group(function () {
     | 🔒 PROTECTED (Auth Required)
     |--------------------------------------------------------------------------
     */
+    Route::post('refresh', [AuthController::class, 'refresh']);
+    
     Route::middleware('auth:trainer')->group(function () {
 
         // ── Auth ────────────────────────────────────────
         Route::post('logout', [AuthController::class, 'logout']);
-        Route::post('refresh', [AuthController::class, 'refresh']);
 
         // ── Dashboard & History ───────────────────────
         Route::get('dashboard', [DashboardController::class, 'index']);
@@ -49,6 +50,7 @@ Route::prefix('trainer')->group(function () {
         // ── Clients ────────────────────────────────────
         // ⚠️ Static routes BEFORE dynamic {id} routes
         Route::get('clients/today', [ClientController::class, 'today']);
+        Route::get('clients/sessions', [ClientController::class, 'clientSessions']);
         Route::get('clients', [ClientController::class, 'index']);
         Route::get('clients/{id}', [ClientController::class, 'show']);
 

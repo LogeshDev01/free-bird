@@ -22,7 +22,6 @@ return new class extends Migration
             $table->date('dob');
             $table->string('phone')->unique();
             $table->string('email')->unique();
-            $table->string('password');
             $table->string('address');
             $table->string('city');
             $table->string('state');

@@ -140,7 +140,7 @@ class ClientController extends Controller
             // ✅ FIX: Eager load all nested relationships (N+1 fix)
             $todaySessions = $trainer->sessions()
                 ->with([
-                    'client:id,first_name,last_name,profile_pic,goal',
+                    'client:id,first_name,last_name,profile_pic,goal,city_id,state_id,zone_id',
                     'client.workoutAssignments' => function ($q) {
                         $q->where('status', '!=', WorkoutAssignment::STATUS_COMPLETED)
                           ->with('workout.category.workoutCategoryType');
@@ -149,7 +149,9 @@ class ClientController extends Controller
                         $q->where('status', '!=', DietPlanAssignment::STATUS_COMPLETED)
                           ->with('dietPlan.category:id,name');
                     },
-                    'client.currentSubscription.plan'
+                    'client.currentSubscription.plan',
+                    'client.city',
+                    'client.zone',
                 ])
                 ->where('session_date', $today)
                 ->where('status', Session::STATUS_SCHEDULED)
@@ -188,6 +190,8 @@ class ClientController extends Controller
                         'start_time'   => Carbon::parse($session->start_time)->format('g:i A'),
                         'end_time'     => Carbon::parse($session->end_time)->format('g:i A'),
                         'location'     => $session->location,
+                        'city'         => $client->city->name ?? null,
+                        'zone'         => $client->zone->name ?? $client->zone ?? null,
                         'status'       => $session->status,
                         'workout_tags' => $workoutTags,
                         'diet_tags'    => $dietTags,
@@ -202,6 +206,85 @@ class ClientController extends Controller
             ], 200);
         } catch (\Exception $e) {
             Log::error('Today clients failed', [
+                'trainer_id' => auth('trainer')->id(),
+                'error'      => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'status'  => false,
+                'message' => 'Something went wrong. Please try again.',
+            ], 500);
+        }
+    }
+    /**
+     * GET /api/v1/mobile/trainer/clients/sessions
+     * List sessions that are not completed, formatted for the "Select Clients" UI with search
+     */
+    public function clientSessions(Request $request): JsonResponse
+    {
+        try {
+            $trainer = auth('trainer')->user();
+
+            // Initial query for sessions that are not completed
+            $query = $trainer->sessions()
+                ->with([
+                    'client:id,first_name,last_name,profile_pic,goal,city_id,zone_id',
+                    'client.city',
+                    'client.zone',
+                ])
+                ->where('status', '!=', Session::STATUS_COMPLETED);
+
+            // ✅ Search functionality (filters by all major fields)
+            if ($request->has('search') && $request->search !== '') {
+                $search = str_replace(['%', '_'], ['\\%', '\\_'], $request->search);
+                $query->where(function ($q) use ($search) {
+                    // Search in Client details (name, goal)
+                    $q->whereHas('client', function ($cq) use ($search) {
+                        $cq->where('first_name', 'LIKE', "%{$search}%")
+                          ->orWhere('last_name', 'LIKE', "%{$search}%")
+                          ->orWhere('goal', 'LIKE', "%{$search}%");
+                    })
+                    // Search in Session details (location, date)
+                    ->orWhere('location', 'LIKE', "%{$search}%")
+                    ->orWhere('session_date', 'LIKE', "%{$search}%");
+                });
+            }
+
+            $sessions = $query->orderBy('session_date', 'asc')
+                ->orderBy('start_time', 'asc')
+                ->paginate($request->get('per_page', 20));
+
+            // Transform data to match UI fields
+            $formattedSessions = collect($sessions->items())->map(function ($session) {
+                $client = $session->client;
+                
+                return [
+                    'session_id'  => $session->id,
+                    'client_id'   => $client->id,
+                    'name'        => $client->full_name,
+                    'profile_pic' => $client->profile_pic,
+                    'subtitle'    => $client->goal ?? 'Fitness Session',
+                    'date'        => Carbon::parse($session->session_date)->format('d M Y'),
+                    'time_display'=> Carbon::parse($session->start_time)->format('g:i A') . ' To ' . Carbon::parse($session->end_time)->format('g:i A'),
+                    'location'    => $session->location ?? $client->zone->name ?? $client->city->name ?? 'Remote',
+                ];
+            });
+
+            return response()->json([
+                'status'  => true,
+                'message' => 'Client sessions fetched successfully',
+                'data'    => [
+                    'list' => $formattedSessions,
+                    'meta' => [
+                        'current_page' => $sessions->currentPage(),
+                        'last_page'    => $sessions->lastPage(),
+                        'total'        => $sessions->total(),
+                        'per_page'     => $sessions->perPage(),
+                    ]
+                ],
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error('Client sessions list failed', [
                 'trainer_id' => auth('trainer')->id(),
                 'error'      => $e->getMessage(),
             ]);

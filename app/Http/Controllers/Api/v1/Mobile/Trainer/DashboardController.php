@@ -32,7 +32,6 @@ class DashboardController extends Controller
         try {
             $trainer = auth('trainer')->user();
             $today = Carbon::today();
-            $dayOfWeek = $today->dayOfWeek; // 0=Sunday, 6=Saturday
 
             // ── 1. Trainer Profile ──────────────────────────────
             $profile = [
@@ -55,8 +54,7 @@ class DashboardController extends Controller
                 ->count();
 
             $totalSlots = $trainer->slots()
-                ->where('day_of_week', $dayOfWeek)
-                ->where('is_available', true)
+                ->where('date', $today)
                 ->count();
 
             $bookedSlots = $trainer->sessions()
@@ -77,20 +75,25 @@ class DashboardController extends Controller
             //    instead of querying inside the loop (N+1 fix)
             $todayClients = $trainer->sessions()
                 ->with([
-                    'client:id,first_name,last_name,profile_pic',
+                    'client:id,first_name,last_name,profile_pic,city_id,state_id,zone_id',
                     'client.workoutAssignments' => function ($q) {
                         $q->where('status', '!=', WorkoutAssignment::STATUS_COMPLETED)
-                          ->with('workout.category.workoutCategoryType');
+                            ->with('workout.category.workoutCategoryType');
                     },
                     'client.dietPlanAssignments' => function ($q) {
                         $q->where('status', '!=', DietPlanAssignment::STATUS_COMPLETED)
-                          ->with('dietPlan.category:id,name');
+                            ->with('dietPlan.category:id,name');
                     },
+                    'client.city',
+                    'client.zone',
                 ])
                 ->where('session_date', $today)
                 ->where('status', Session::STATUS_SCHEDULED)
                 ->orderBy('start_time', 'asc')
                 ->get()
+                ->unique('client_id')
+                ->take(5)
+                ->values()
                 ->map(function ($session) {
                     $client = $session->client;
 
@@ -115,6 +118,8 @@ class DashboardController extends Controller
                         'start_time'   => Carbon::parse($session->start_time)->format('g:i A'),
                         'end_time'     => Carbon::parse($session->end_time)->format('g:i A'),
                         'location'     => $session->location,
+                        'city'         => $client->city->name ?? null,
+                        'zone'         => $client->zone->name ?? $client->zone ?? null,
                         'status'       => $session->status,
                         'workout_tags' => $workoutTags,
                         'diet_tags'    => $dietTags,

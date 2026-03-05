@@ -57,6 +57,8 @@ class ClientResource extends JsonResource
             'full_name' => $this->full_name,
             'profile_pic' => $this->profile_pic,
             'goal' => $this->goal,
+            'city' => $this->city->name ?? null,
+            'zone' => $this->zone->name ?? $this->zone ?? null,
             'status' => $this->status,
             'subscription' => $subscriptionData,
             

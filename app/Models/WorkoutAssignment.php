@@ -9,11 +9,24 @@ class WorkoutAssignment extends Model
 {
     protected $table = 'fb_tbl_workout_assignment';
 
-    // ─── Status Constants ─────────────────────────────────
+    // ─── Status Constants ─────────────────────────────────────────────────────
+    const STATUS_DRAFT       = 0;
     const STATUS_PENDING     = 1;
     const STATUS_IN_PROGRESS = 2;
     const STATUS_COMPLETED   = 3;
 
+    /**
+     * Table columns:
+     *  id, trainer_id, client_id, category_id, workout_id,
+     *  custom_sets (JSON),
+     *  duration    (int — total seconds, auto-calculated from sum of custom_sets[*].duration),
+     *  batch_id, assigned_date, due_date, status, notes,
+     *  assigned_by_id, assigned_by_type,
+     *  created_at, updated_at
+     *
+     * NOTE: `kg` is NOT a top-level column — it lives inside each custom_sets item:
+     *   custom_sets: [{ set, reps, lbs, kg, rest, duration }, ...]
+     */
     protected $fillable = [
         'trainer_id',
         'assigned_by_id',
@@ -22,7 +35,8 @@ class WorkoutAssignment extends Model
         'client_id',
         'category_id',
         'workout_id',
-        'custom_sets',
+        'custom_sets',   // JSON: [{ set, reps, lbs, kg, rest, duration }]
+        'duration',      // Auto-calculated: sum of all custom_sets[*].duration (seconds)
         'assigned_date',
         'due_date',
         'status',
@@ -34,12 +48,13 @@ class WorkoutAssignment extends Model
         'due_date'      => 'date',
         'status'        => 'integer',
         'custom_sets'   => 'array',
+        'duration'      => 'integer',
     ];
 
-    // ─── Relationships ────────────────────────────────────
+    // ─── Relationships ────────────────────────────────────────────────────────
 
     /**
-     * Polymorphic relation to whoever assigned the workout (Admin or Trainer)
+     * Polymorphic: whoever assigned the workout (Admin or Trainer)
      */
     public function assignedBy()
     {

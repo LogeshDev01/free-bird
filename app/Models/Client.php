@@ -31,14 +31,15 @@ class Client extends Authenticatable
         'weight',
         'goal',
         'address',
-        'city',
-        'state',
         'zip_code',
         'country',
         'emergency_contact_person',
         'emergency_phone',
         'status',
         'current_subscription_id',
+        'state_id',
+        'city_id',
+        'zone_id',
     ];
 
     protected $hidden = [
@@ -116,5 +117,20 @@ class Client extends Authenticatable
     public function currentSubscription(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(ClientSubscription::class, 'current_subscription_id');
+    }
+
+    public function state(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(State::class, 'state_id');
+    }
+
+    public function city(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(City::class, 'city_id');
+    }
+
+    public function zone(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Zone::class, 'zone_id');
     }
 }

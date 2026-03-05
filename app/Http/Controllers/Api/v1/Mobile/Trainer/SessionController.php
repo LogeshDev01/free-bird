@@ -167,7 +167,7 @@ class SessionController extends Controller
         } catch (\Exception $e) {
             Log::error('Session creation failed', [
                 'trainer_id' => auth('trainer')->id(),
-                'input'      => $request->except('password'),
+                'input'      => $request->all(),
                 'error'      => $e->getMessage(),
             ]);
 
@@ -242,7 +242,8 @@ class SessionController extends Controller
             // Fetch sessions with related client goals and assignments (per date)
             $sessions = $trainer->sessions()
                 ->with([
-                    'client:id,first_name,last_name,profile_pic,goal,city',
+                    'client:id,first_name,last_name,profile_pic,goal,city_id',
+                    'client.city',
                     'client.workoutAssignments' => function($q) use ($today, $endDate) {
                         $q->whereBetween('assigned_date', [$today, $endDate]);
                     },
@@ -289,7 +290,7 @@ class SessionController extends Controller
                                 'id'         => $s->id,
                                 'start_time' => Carbon::parse($s->start_time)->format('g:i A'),
                                 'end_time'   => Carbon::parse($s->end_time)->format('g:i A'),
-                                'location'   => $s->location ?? $s->client->city ?? 'Remote',
+                                'location'   => $s->location ?? $s->client->city->name ?? 'Remote',
                                 'client'     => [
                                     'id'          => $s->client->id,
                                     'full_name'   => $s->client->full_name,
