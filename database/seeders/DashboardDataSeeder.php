@@ -15,6 +15,7 @@ use App\Models\WorkoutAssignment;
 use App\Models\DietPlanCategory;
 use App\Models\DietPlan;
 use App\Models\DietPlanAssignment;
+use App\Models\MealType;
 use App\Models\Notification;
 use App\Models\TrainerRating;
 use App\Models\City;
@@ -229,13 +230,16 @@ class DashboardDataSeeder extends Seeder
         );
 
         // Diet Plan
+        $breakfastType = MealType::where('name', 'Breakfast')->first();
+
         $diet = DietPlan::firstOrCreate(
             ['name' => 'High Protein Breakfast', 'trainer_id' => $trainer->id],
             [
                 'category_id'   => $dietCat->id,
                 'calories'      => 800,
                 'protein_grams' => 40,
-                'meal_type'     => 'Breakfast'
+                'meal_type'     => 'Breakfast',           // legacy string
+                'meal_type_id'  => $breakfastType?->id,  // FK relation
             ]
         );
 

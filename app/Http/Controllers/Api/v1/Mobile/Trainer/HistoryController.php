@@ -52,7 +52,7 @@ class HistoryController extends Controller
             // ── 2. Session List (Paginated) ────────────────────
             // We fetch all sessions (past and today's) ordered by most recent
             $sessions = $trainer->sessions()
-                ->with(['client:id,first_name,last_name,profile_pic', 'slot.type:id,name'])
+                ->with(['client:id,first_name,last_name,profile_pic', 'slot.type:id,name', 'locationDetail:id,name'])
                 ->orderBy('session_date', 'desc')
                 ->orderBy('start_time', 'desc')
                 ->paginate($request->get('per_page', 10));
@@ -76,7 +76,7 @@ class HistoryController extends Controller
                     'session_type'     => $session->slot && $session->slot->type ? $session->slot->type->name : 'General Session',
                     'start_time'       => Carbon::parse($session->start_time)->format('g:i A'),
                     'end_time'         => Carbon::parse($session->end_time)->format('g:i A'),
-                    'location'         => $session->location ?? 'N/A',
+                    'location'         => $session->locationDetail->name ?? $session->location ?? 'N/A',
                     'status'           => $session->status, // 2=Completed, 3=Cancelled, 4=No Show
                     'session_date'     => $date->format('Y-m-d'),
                     'session_date_raw' => $date->format('M d, Y'),

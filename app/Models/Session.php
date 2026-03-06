@@ -51,4 +51,12 @@ class Session extends Model
     {
         return $this->belongsTo(TrainerSlot::class, 'slot_id');
     }
+
+    public function locationDetail(): BelongsTo
+    {
+        return $this->belongsTo(City::class, 'location', 'id');
+    }
+
+    // Note: 'location' is a plain VARCHAR string column (not a FK).
+    // $session->location returns the string directly — no relation needed.
 }

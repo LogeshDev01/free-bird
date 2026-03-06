@@ -75,6 +75,7 @@ Route::prefix('trainer')->group(function () {
         // ── Diet Plans Library ─────────────────────────
         // ⚠️ Static routes BEFORE dynamic {id} routes
         Route::get('diet-plans/categories', [DietPlanController::class, 'categories']);
+        Route::get('diet-plans/meal-types', [DietPlanController::class, 'mealTypes']);
         Route::get('diet-plans', [DietPlanController::class, 'index']);
         Route::get('diet-plans/{id}', [DietPlanController::class, 'show']);
         Route::post('diet-plans/assign', [DietPlanController::class, 'assign']);
@@ -84,7 +85,7 @@ Route::prefix('trainer')->group(function () {
         Route::get('notifications/unread-count', [NotificationController::class, 'unreadCount']);
         Route::post('notifications/read-all', [NotificationController::class, 'markAllAsRead']);
         Route::get('notifications', [NotificationController::class, 'index']);
-        Route::post('notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+        Route::post('notifications/read', [NotificationController::class, 'markAsRead']);
 
         // ── Slots ──────────────────────────────────────
         Route::get('slots/types', [SlotController::class, 'types']);

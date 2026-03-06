@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 
+
 class Trainer extends Authenticatable implements JWTSubject
 {
     use SoftDeletes;
@@ -186,11 +187,13 @@ class Trainer extends Authenticatable implements JWTSubject
     }
 
     /**
-     * Ratings received by this trainer
+     * Session reviews where a client has rated this trainer.
+     * Replaces the old TrainerRating relationship.
      */
     public function ratings(): HasMany
     {
-        return $this->hasMany(TrainerRating::class, 'trainer_id');
+        return $this->hasMany(SessionReview::class, 'trainer_id')
+                    ->whereNotNull('client_rating');
     }
 
     /**
@@ -227,29 +230,37 @@ class Trainer extends Authenticatable implements JWTSubject
     // ─── Helper Methods ────────────────────────────────────
 
     /**
-     * Average rating for this trainer
+     * Average rating this trainer has received from clients.
+     * Reads client_rating from fb_tbl_session_review.
+     * Return type stays float — Dashboard API unchanged.
      */
     public function getAverageRating(): float
     {
-        return round($this->ratings()->avg('rating') ?? 0, 1);
+        $avg = SessionReview::where('trainer_id', $this->id)
+            ->whereNotNull('client_rating')
+            ->avg('client_rating');
+
+        return round((float) ($avg ?? 0), 1);
     }
 
     /**
-     * Client satisfaction percentage for the current month
-     * ✅ FIX: Uses created_at instead of removed 'month' column
+     * Client satisfaction percentage for the current month.
+     * Reads client_rating from fb_tbl_session_review, uses client_reviewed_at.
+     * Return type stays float — Dashboard API unchanged.
      */
     public function getMonthlyClientSatisfaction(): float
     {
-        $ratings = $this->ratings()
-            ->whereMonth('created_at', now()->month)
-            ->whereYear('created_at', now()->year)
+        $reviews = SessionReview::where('trainer_id', $this->id)
+            ->whereNotNull('client_rating')
+            ->whereMonth('client_reviewed_at', now()->month)
+            ->whereYear('client_reviewed_at', now()->year)
             ->get();
 
-        if ($ratings->isEmpty()) {
+        if ($reviews->isEmpty()) {
             return 0;
         }
 
-        $satisfied = $ratings->where('rating', '>=', 4)->count();
-        return round(($satisfied / $ratings->count()) * 100, 0);
+        $satisfied = $reviews->where('client_rating', '>=', 4)->count();
+        return round(($satisfied / $reviews->count()) * 100, 0);
     }
 }

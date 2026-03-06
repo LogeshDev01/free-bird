@@ -79,12 +79,12 @@ class NotificationController extends Controller
      * POST /api/v1/mobile/trainer/notifications/{id}/read
      * Mark a notification as read
      */
-    public function markAsRead($id): JsonResponse
+    public function markAsRead(Request $request): JsonResponse
     {
         try {
             $trainer = auth('trainer')->user();
 
-            $notification = $trainer->notifications()->find($id);
+            $notification = $trainer->notifications()->find($request->id);
 
             if (!$notification) {
                 return response()->json([
@@ -102,7 +102,7 @@ class NotificationController extends Controller
         } catch (\Exception $e) {
             Log::error('Notification mark read failed', [
                 'trainer_id'      => auth('trainer')->id(),
-                'notification_id' => $id,
+                'notification_id' => $request->id,
                 'error'           => $e->getMessage(),
             ]);
 

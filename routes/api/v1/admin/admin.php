@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\v1\Admin\AuthController;
+use App\Http\Controllers\Api\v1\Admin\TrainerClientController;
 
 /*
 |--------------------------------------------------------------------------
@@ -32,4 +33,14 @@ Route::middleware(['jwt.cookie', 'auth:api'])->group(function () {
     Route::patch('workouts/assignments/{id}', [\App\Http\Controllers\Api\v1\Admin\WorkoutAssignmentController::class, 'update']);
     Route::delete('workouts/assignments/{id}', [\App\Http\Controllers\Api\v1\Admin\WorkoutAssignmentController::class, 'destroy']);
     Route::delete('workouts/batch/{batch_id}', [\App\Http\Controllers\Api\v1\Admin\WorkoutAssignmentController::class, 'destroyBatch']);
+
+    // ── Trainer-Client Enrollment Routes ────────────────────────────────
+    Route::get('trainer-clients', [TrainerClientController::class, 'index']);
+    Route::post('trainer-clients', [TrainerClientController::class, 'assign']);
+    Route::patch('trainer-clients/{id}/status', [TrainerClientController::class, 'updateStatus']);
+    Route::delete('trainer-clients/{id}', [TrainerClientController::class, 'destroy']);
+
+    // Per-trainer and per-client views
+    Route::get('trainers/{trainerId}/clients', [TrainerClientController::class, 'trainerClients']);
+    Route::get('clients/{clientId}/trainers', [TrainerClientController::class, 'clientTrainers']);
 });

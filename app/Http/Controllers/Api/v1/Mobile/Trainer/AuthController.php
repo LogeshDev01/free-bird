@@ -93,11 +93,11 @@ class AuthController extends Controller
         $refreshToken = Str::random(64);
 
         RefreshToken::create([
-            'tokenable_id' => $trainer->id,
+            'tokenable_id'   => $trainer->id,
             'tokenable_type' => Trainer::class,
-            'token' => hash('sha256', $refreshToken),
-            'expires_at' => now()->addDays(7),
-            'device' => $request->userAgent()
+            'token'          => hash('sha256', $refreshToken),
+            'expires_at'     => now()->addDays(30),
+            'device'         => $request->userAgent()
         ]);
 
         return response()->json([
@@ -139,21 +139,22 @@ class AuthController extends Controller
         $newRefresh = Str::random(64);
 
         RefreshToken::create([
-            'tokenable_id' => $trainer->id,
+            'tokenable_id'   => $trainer->id,
             'tokenable_type' => Trainer::class,
-            'token' => hash('sha256', $newRefresh),
-            'expires_at' => now()->addDays(7),
-            'device' => $request->userAgent()
+            'token'          => hash('sha256', $newRefresh),
+            'expires_at'     => now()->addDays(30),
+            'device'         => $request->userAgent()
         ]);
 
         $newAccess = auth()->guard('trainer')->login($trainer);
 
         return response()->json([
-            'message' => 'Token refreshed',
-            'access_token' => $newAccess,
-            'token_type' => 'Bearer',
-            'expires_in' => auth()->guard('trainer')->factory()->getTTL() * 60,
-            'refresh_token' => $newRefresh,
+            'message'            => 'Token refreshed',
+            'access_token'       => $newAccess,
+            'token_type'         => 'Bearer',
+            'expires_in'         => auth()->guard('trainer')->factory()->getTTL() * 60,
+            'refresh_token'      => $newRefresh,
+            'refresh_expires_in' => 30 * 24 * 60 * 60,
         ]);
     }
 

@@ -16,7 +16,7 @@ return new class extends Migration
             $table->date('session_date');
             $table->time('start_time');
             $table->time('end_time');
-            $table->string('location')->nullable();
+            $table->integer('location')->nullable();
             $table->tinyInteger('status')->default(1)->comment('1=scheduled, 2=completed, 3=cancelled, 4=no_show');
             $table->text('notes')->nullable();
             $table->timestamps();

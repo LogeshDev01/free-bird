@@ -3,10 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class WorkoutAssignment extends Model
 {
+    use SoftDeletes;
     protected $table = 'fb_tbl_workout_assignment';
 
     // ─── Status Constants ─────────────────────────────────────────────────────
@@ -32,6 +34,7 @@ class WorkoutAssignment extends Model
         'assigned_by_id',
         'assigned_by_type',
         'batch_id',
+        'session_id',      // nullable — link to specific session
         'client_id',
         'category_id',
         'workout_id',

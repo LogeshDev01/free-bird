@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\v1\Mobile\Trainer;
 
 use App\Http\Controllers\Controller;
+use App\Models\MealType;
 use App\Models\Trainer;
 use App\Models\DietPlan;
 use App\Models\DietPlanCategory;
@@ -21,19 +22,48 @@ class DietPlanController extends Controller
 
     /**
      * GET /api/v1/mobile/trainer/diet-plans/categories
-     * List all diet plan categories
+     * List all diet plan categories (paginated)
      */
-    public function categories(): JsonResponse
+    public function categories(Request $request): JsonResponse
     {
         try {
-            $categories = DietPlanCategory::where('is_active', true)
-                ->withCount('dietPlans')
-                ->get();
+            $perPage = (int) $request->get('per_page', 10);
 
+            // ⚠️ minimum_plan_tier must be selected — it's the FK used by subsciptionPlans relation
+            $categories = DietPlanCategory::where('is_active', true)
+                ->select(['id', 'name', 'image', 'description', 'minimum_plan_tier'])
+                ->withCount('dietPlans')
+                ->with('subsciptionPlans:id,name')
+                ->when($request->filled('search'), function ($query) use ($request) {
+                    $search = str_replace(['%', '_'], ['\\%', '\\_'], $request->search);
+                    $query->where('name', 'LIKE', "%{$search}%");
+                })
+                ->orderBy('name')
+                ->paginate($perPage);
+
+            $data = collect($categories->items())->map(function ($category) {
+                return [
+                    'id'                => $category->id,
+                    'name'              => $category->name,
+                    'image'             => $category->image,
+                    'description'       => $category->description,
+                    'diet_plans_count'  => $category->diet_plans_count,
+                    'subscription_plan' => $category->subsciptionPlans
+                        ? ['id' => $category->subsciptionPlans->id, 'name' => $category->subsciptionPlans->name]
+                        : null,
+                ];
+            });
+            
             return response()->json([
                 'status'  => true,
                 'message' => 'Diet plan categories fetched successfully',
-                'data'    => $categories,
+                'data'    => $data,
+                'pagination' => [
+                    'current_page' => $categories->currentPage(),
+                    'per_page'     => $categories->perPage(),
+                    'total'        => $categories->total(),
+                    'last_page'    => $categories->lastPage(),
+                ],
             ], 200);
         } catch (\Exception $e) {
             Log::error('Diet plan categories failed', ['error' => $e->getMessage()]);
@@ -46,25 +76,60 @@ class DietPlanController extends Controller
     }
 
     /**
+     * GET /api/v1/mobile/trainer/diet-plans/meal-types
+     * List all active meal type master records
+     */
+    public function mealTypes(): JsonResponse
+    {
+        try {
+            $mealTypes = MealType::where('is_active', true)
+                ->orderBy('id')
+                ->get(['id', 'name', 'icon', 'description']);
+
+            return response()->json([
+                'status'  => true,
+                'message' => 'Meal types fetched successfully',
+                'data'    => $mealTypes,
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error('Meal types fetch failed', ['error' => $e->getMessage()]);
+
+            return response()->json([
+                'status'  => false,
+                'message' => 'Something went wrong. Please try again.',
+            ], 500);
+        }
+    }
+
+    /**
      * GET /api/v1/mobile/trainer/diet-plans
-     * List diet plans with optional category filter
+     * List diet plans with optional filters (category_id, meal_type_id, search)
      */
     public function index(Request $request): JsonResponse
     {
         try {
-            $query = DietPlan::with('category:id,name')
+            $query = DietPlan::with([
+                    'category:id,name',
+                    'mealType:id,name,icon',
+                ])
                 ->where('is_active', true);
 
-            if ($request->has('category_id')) {
+            if ($request->filled('category_id')) {
                 $query->where('category_id', $request->category_id);
             }
 
-            if ($request->has('meal_type')) {
+            // ── Filter by meal_type_id (master FK) ──────────────────────
+            if ($request->filled('meal_type_id')) {
+                $query->where('meal_type_id', $request->meal_type_id);
+            }
+
+            // ── Legacy string filter kept for backward compatibility ─────
+            if ($request->filled('meal_type') && !$request->filled('meal_type_id')) {
                 $query->where('meal_type', $request->meal_type);
             }
 
-            // ✅ FIX: Sanitize LIKE wildcards
-            if ($request->has('search') && $request->search !== '') {
+            // ── Search ───────────────────────────────────────────────────
+            if ($request->filled('search')) {
                 $search = str_replace(['%', '_'], ['\\%', '\\_'], $request->search);
                 $query->where('name', 'LIKE', "%{$search}%");
             }
@@ -75,7 +140,13 @@ class DietPlanController extends Controller
             return response()->json([
                 'status'  => true,
                 'message' => 'Diet plans fetched successfully',
-                'data'    => $dietPlans,
+                'data'    => $dietPlans->items(),
+                'pagination' => [
+                    'current_page' => $dietPlans->currentPage(),
+                    'per_page'     => $dietPlans->perPage(),
+                    'total'        => $dietPlans->total(),
+                    'last_page'    => $dietPlans->lastPage(),
+                ],
             ], 200);
         } catch (\Exception $e) {
             Log::error('Diet plan list failed', ['error' => $e->getMessage()]);
@@ -94,7 +165,10 @@ class DietPlanController extends Controller
     public function show($id): JsonResponse
     {
         try {
-            $dietPlan = DietPlan::with('category:id,name')->find($id);
+            $dietPlan = DietPlan::with([
+                'category:id,name',
+                'mealType:id,name,icon',
+            ])->find($id);
 
             if (!$dietPlan) {
                 return response()->json([
@@ -160,7 +234,11 @@ class DietPlanController extends Controller
             return response()->json([
                 'status'  => true,
                 'message' => 'Diet plan assigned successfully',
-                'data'    => $assignment->load(['dietPlan.category', 'client:id,first_name,last_name']),
+                'data'    => $assignment->load([
+                    'dietPlan.category',
+                    'dietPlan.mealType:id,name,icon',
+                    'client:id,first_name,last_name',
+                ]),
             ], 201);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([

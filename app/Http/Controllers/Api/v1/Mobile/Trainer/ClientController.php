@@ -30,13 +30,19 @@ class ClientController extends Controller
         try {
             $trainer = auth('trainer')->user();
 
-            $query = $trainer->clients()->with([
-                'currentSubscription.plan.features.feature',
-                'currentSubscription.usages'
-            ]);
+            // ── Always scope to active enrollments by default ──────────────
+            // A trainer should only see clients that are status=1 (active) in
+            // fb_tbl_trainer_client. Inactive/completed clients are hidden unless
+            // the caller explicitly passes ?status=0 or ?status=2.
+            $query = $trainer->clients()
+                ->wherePivot('status', Trainer::CLIENT_ACTIVE)
+                ->with([
+                    'currentSubscription.plan.features.feature',
+                    'currentSubscription.usages'
+                ]);
 
-            // Filter by status
-            if ($request->has('status')) {
+            // Allow admin-style override: ?status=0 (inactive) or ?status=2 (completed)
+            if ($request->filled('status')) {
                 $query->wherePivot('status', $request->status);
             }
 
@@ -50,6 +56,7 @@ class ClientController extends Controller
             }
 
             $clients = $query->paginate($request->get('per_page', 20));
+
 
             return response()->json([
                 'status'  => true,
@@ -78,10 +85,14 @@ class ClientController extends Controller
         try {
             $trainer = auth('trainer')->user();
 
-            $client = $trainer->clients()->with([
-                'currentSubscription.plan.features.feature',
-                'currentSubscription.usages'
-            ])->where('fb_tbl_client.id', $id)->first();
+            $client = $trainer->clients()
+                ->wherePivot('status', Trainer::CLIENT_ACTIVE)
+                ->with([
+                    'currentSubscription.plan.features.feature',
+                    'currentSubscription.usages'
+                ])
+                ->where('fb_tbl_client.id', $id)
+                ->first();
 
             if (!$client) {
                 return response()->json([
@@ -248,6 +259,14 @@ class ClientController extends Controller
                     ->orWhere('location', 'LIKE', "%{$search}%")
                     ->orWhere('session_date', 'LIKE', "%{$search}%");
                 });
+            }
+            // ✅ Multi-date filtering (supports dates[] array or comma-separated string)
+            if ($request->filled('dates')) {
+                $dates = is_array($request->dates) 
+                    ? $request->dates 
+                    : explode(',', $request->dates);
+                
+                $query->whereIn('session_date', $dates);
             }
 
             $sessions = $query->orderBy('session_date', 'asc')

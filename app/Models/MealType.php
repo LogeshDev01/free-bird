@@ -4,39 +4,26 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 
-class DietPlanCategory extends Model
+class MealType extends Model
 {
-    protected $table = 'fb_tbl_diet_plan_category';
+    protected $table = 'fb_tbl_meal_type';
 
     protected $fillable = [
         'name',
         'icon',
-        'image',
         'description',
         'is_active',
-        'minimum_plan_tier',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
     ];
 
-    public function getImageAttribute($value)
-    {
-        return $value ? asset('storage/' . $value) : null;
-    }
-
     // ─── Relationships ─────────────────────────────────────
 
     public function dietPlans(): HasMany
     {
-        return $this->hasMany(DietPlan::class, 'category_id');
-    }
-
-    public function subsciptionPlans(): HasOne
-    {
-        return $this->hasOne(Plan::class, 'id', 'minimum_plan_tier');
+        return $this->hasMany(DietPlan::class, 'meal_type_id');
     }
 }

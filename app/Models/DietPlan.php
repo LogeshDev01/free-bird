@@ -23,7 +23,8 @@ class DietPlan extends Model
         'protein_grams',
         'carbs_grams',
         'fat_grams',
-        'meal_type',
+        'meal_type',      // legacy string – kept for backward compat
+        'meal_type_id',   // FK → fb_tbl_meal_type
         'is_active',
     ];
 
@@ -36,6 +37,11 @@ class DietPlan extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(DietPlanCategory::class, 'category_id');
+    }
+
+    public function mealType(): BelongsTo
+    {
+        return $this->belongsTo(MealType::class, 'meal_type_id');
     }
 
     public function trainer(): BelongsTo

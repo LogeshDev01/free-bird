@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\v1\Mobile\Trainer;
 
 use App\Http\Controllers\Controller;
+use App\Models\Session;
 use App\Models\Trainer;
 use App\Models\Workout;
 use App\Models\WorkoutCategory;
@@ -85,12 +86,25 @@ class WorkoutController extends Controller
             $query = Workout::where('is_active', true)
                 ->select(['id', 'category_id', 'name', 'image', 'sets', 'reps', 'lbs', 'rest_seconds', 'muscle_group']);
 
-            if ($request->has('category_id')) {
-                $query->where('category_id', $request->category_id);
+            if ($request->filled('category_ids')) {
+                $categoryIds = $request->input('category_ids');
+
+                // Normalize: support both array format and comma-separated string
+                // Array:  ?category_ids[]=1&category_ids[]=2
+                // String: ?category_ids=1,2  (fallback)
+                if (is_string($categoryIds)) {
+                    $categoryIds = array_filter(array_map('intval', explode(',', $categoryIds)));
+                } else {
+                    $categoryIds = array_filter(array_map('intval', (array) $categoryIds));
+                }
+
+                if (!empty($categoryIds)) {
+                    $query->whereIn('category_id', $categoryIds);
+                }
             }
 
             // ✅ Enhanced Search functionality
-            if ($request->has('search') && $request->search !== '') {
+            if ($request->filled('search')) {
                 $search = str_replace(['%', '_'], ['\\%', '\\_'], $request->search);
                 $query->where(function ($q) use ($search) {
                     $q->where('name', 'LIKE', "%{$search}%")
@@ -241,10 +255,61 @@ class WorkoutController extends Controller
             $invalidClients = array_diff($validated['client_ids'], $trainerClientIds);
             if (!empty($invalidClients)) {
                 return response()->json([
-                    'status'  => false,
-                    'message' => 'One or more clients are not assigned to you.',
+                    'status'             => false,
+                    'message'            => 'One or more clients are not assigned to you.',
                     'invalid_client_ids' => array_values($invalidClients),
                 ], 403);
+            }
+
+            // ── Verify every (client, date) pair has a session booked ──────────
+            //
+            // Strategy (1 DB query, O(1) lookups in PHP memory):
+            //   1. Pull all sessions this trainer has with these clients on these dates.
+            //   2. Build a Set of "clientId_YYYY-MM-DD" strings.
+            //   3. Walk every combination and collect ALL missing pairs.
+            //   4. Return the full list so the caller fixes everything at once.
+            //
+            $clientIds     = $validated['client_ids'];
+            $assignedDates = array_map(
+                fn($d) => \Carbon\Carbon::parse($d)->format('Y-m-d'),
+                $validated['assigned_dates']
+            );
+
+            // Single query — fetch only client_id + session_date
+            $existingSessions = Session::where('trainer_id', $trainer->id)
+                ->whereIn('client_id', $clientIds)
+                ->whereIn('session_date', $assignedDates)
+                ->where('status', Session::STATUS_SCHEDULED)   // only active/scheduled sessions count
+                ->get(['client_id', 'session_date']);
+
+            // Build a hash-set: "12_2026-03-06" => true
+            $sessionSet = $existingSessions
+                ->mapWithKeys(fn($s) => [
+                    $s->client_id . '_' . \Carbon\Carbon::parse($s->session_date)->format('Y-m-d') => true
+                ])
+                ->all();
+
+            // Collect every missing (client, date) combination
+            $missingPairs = [];
+            foreach ($clientIds as $clientId) {
+                foreach ($assignedDates as $date) {
+                    $key = $clientId . '_' . $date;
+                    if (!isset($sessionSet[$key])) {
+                        $missingPairs[] = [
+                            'client_id' => $clientId,
+                            'date'      => $date,
+                        ];
+                    }
+                }
+            }
+
+            if (!empty($missingPairs)) {
+                return response()->json([
+                    'status'        => false,
+                    'message'       => 'Workout can only be assigned on dates when the client has a scheduled session. '
+                                     . 'The following client-date pairs have no session booked.',
+                    'missing_pairs' => $missingPairs,
+                ], 422);
             }
 
             // ── Build rows inside a transaction ───────────────────────────────
@@ -363,6 +428,32 @@ class WorkoutController extends Controller
                 'custom_sets.*.duration'   => 'nullable|integer|min:0',
             ]);
 
+            // ── Session-date check when assigned_date is being changed ─────────
+            // Only run if a new date is provided AND it differs from the current date.
+            if (!empty($validated['assigned_date'])) {
+                $newDate   = \Carbon\Carbon::parse($validated['assigned_date'])->format('Y-m-d');
+                $oldDate   = \Carbon\Carbon::parse($assignment->assigned_date)->format('Y-m-d');
+
+                if ($newDate !== $oldDate) {
+                    // One query: does the client have a scheduled session with this trainer on the new date?
+                    $sessionExists = Session::where('trainer_id', $trainer->id)
+                        ->where('client_id', $assignment->client_id)
+                        ->where('session_date', $newDate)
+                        ->where('status', Session::STATUS_SCHEDULED)
+                        ->exists();
+
+                    if (!$sessionExists) {
+                        return response()->json([
+                            'status'  => false,
+                            'message' => 'Cannot reschedule: no session booked for this client on ' . $newDate . '. '
+                                        . 'Please book a session on that date first.',
+                            'client_id'     => $assignment->client_id,
+                            'requested_date' => $newDate,
+                        ], 422);
+                    }
+                }
+            }
+
             // ── Re-calculate duration if custom_sets are being updated ─────────
             $updatePayload = array_filter($validated, fn($v) => $v !== null);
             if (isset($validated['custom_sets'])) {
@@ -416,6 +507,20 @@ class WorkoutController extends Controller
                 return response()->json([
                     'status'  => false,
                     'message' => 'Unauthorized. This assignment does not belong to you.',
+                ], 403);
+            }
+
+            // ── Active pivot check ────────────────────────────────────────────
+            // Confirm the client is still actively enrolled under this trainer.
+            $isActiveClient = $trainer->clients()
+                ->where('fb_tbl_client.id', $assignment->client_id)
+                ->wherePivot('status', Trainer::CLIENT_ACTIVE)
+                ->exists();
+
+            if (!$isActiveClient) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Cannot modify assignments for a client that is no longer active under you.',
                 ], 403);
             }
 
