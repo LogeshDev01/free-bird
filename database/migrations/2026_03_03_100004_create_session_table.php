@@ -18,6 +18,7 @@ return new class extends Migration
             $table->time('end_time');
             $table->integer('location')->nullable();
             $table->tinyInteger('status')->default(1)->comment('1=scheduled, 2=completed, 3=cancelled, 4=no_show');
+            $table->softDeletes();
             $table->text('notes')->nullable();
             $table->timestamps();
 

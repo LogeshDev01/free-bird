@@ -78,8 +78,8 @@ class HistoryController extends Controller
                     'end_time'         => Carbon::parse($session->end_time)->format('g:i A'),
                     'location'         => $session->locationDetail->name ?? $session->location ?? 'N/A',
                     'status'           => $session->status, // 2=Completed, 3=Cancelled, 4=No Show
-                    'session_date'     => $date->format('Y-m-d'),
-                    'session_date_raw' => $date->format('M d, Y'),
+                    'session_date'     => $date->format('d M Y'),
+                    'session_date_raw' => $date->format('d M Y'),
                     'day_label'        => $dateLabel,
                 ];
             });

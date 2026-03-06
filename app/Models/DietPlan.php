@@ -26,6 +26,7 @@ class DietPlan extends Model
         'meal_type',      // legacy string – kept for backward compat
         'meal_type_id',   // FK → fb_tbl_meal_type
         'is_active',
+        'minimum_plan_tier',
     ];
 
     protected $casts = [
@@ -47,6 +48,19 @@ class DietPlan extends Model
     public function trainer(): BelongsTo
     {
         return $this->belongsTo(Trainer::class, 'trainer_id');
+    }
+
+    public function plan(): BelongsTo
+    {
+        return $this->belongsTo(Plan::class, 'minimum_plan_tier');
+    }
+
+    /**
+     * Get the required plan tier, inheriting from category if not explicitly set.
+     */
+    public function getRequiredPlanTierAttribute(): ?int
+    {
+        return $this->minimum_plan_tier ?? $this->category?->minimum_plan_tier;
     }
 
     public function assignments(): HasMany

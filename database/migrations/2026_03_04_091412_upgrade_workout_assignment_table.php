@@ -12,18 +12,14 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('fb_tbl_workout_assignment', function (Blueprint $table) {
-            $table->nullableMorphs('assigned_by');
-            $table->json('custom_sets')->nullable()->after('workout_id')->comment('Custom sets data: [{reps, weight, weight_unit, rest}]');
-            // Make original trainer_id nullable if not already
-            $table->unsignedBigInteger('trainer_id')->nullable()->change();
+            // Consolidated into base creation migration
         });
     }
 
     public function down(): void
     {
         Schema::table('fb_tbl_workout_assignment', function (Blueprint $table) {
-            $table->dropMorphs('assigned_by');
-            $table->dropColumn('custom_sets');
+            //
         });
     }
 };

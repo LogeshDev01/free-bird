@@ -13,6 +13,7 @@ return new class extends Migration
             $table->foreignId('trainer_id')->constrained('fb_tbl_trainer')->onDelete('cascade');
             $table->foreignId('client_id')->constrained('fb_tbl_client')->onDelete('cascade');
             $table->tinyInteger('status')->default(1)->comment('1=active, 0=inactive, 2=completed');
+            $table->softDeletes();
             $table->date('start_date')->nullable();
             $table->date('end_date')->nullable();
             $table->timestamps();

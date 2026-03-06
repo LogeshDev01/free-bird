@@ -23,6 +23,7 @@ return new class extends Migration
             $table->integer('reps')->nullable();
             $table->decimal('rest_seconds', 5, 1)->nullable();
             $table->boolean('is_active')->default(true);
+            $table->softDeletes();
             $table->timestamps();
         });
     }

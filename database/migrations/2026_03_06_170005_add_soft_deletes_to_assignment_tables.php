@@ -17,11 +17,11 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('fb_tbl_workout_assignment', function (Blueprint $table) {
-            $table->softDeletes()->after('notes');
+            // Consolidated into base
         });
 
         Schema::table('fb_tbl_diet_plan_assignment', function (Blueprint $table) {
-            $table->softDeletes()->after('notes');
+            // Consolidated into base
         });
     }
 

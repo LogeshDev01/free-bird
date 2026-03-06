@@ -35,8 +35,8 @@ class DietPlanCategory extends Model
         return $this->hasMany(DietPlan::class, 'category_id');
     }
 
-    public function subsciptionPlans(): HasOne
+    public function plan(): BelongsTo
     {
-        return $this->hasOne(Plan::class, 'id', 'minimum_plan_tier');
+        return $this->belongsTo(Plan::class, 'minimum_plan_tier');
     }
 }

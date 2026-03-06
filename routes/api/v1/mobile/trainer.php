@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\v1\Mobile\Trainer\NotificationController;
 use App\Http\Controllers\Api\v1\Mobile\Trainer\SlotController;
 use App\Http\Controllers\Api\v1\Mobile\Trainer\HistoryController;
 use App\Http\Controllers\Api\v1\Mobile\Trainer\TrainerController;
+use App\Http\Controllers\Api\v1\Mobile\Trainer\LeaveController;
 use App\Http\Controllers\Api\v1\Mobile\WaterLogController;
 use App\Http\Controllers\Api\v1\Mobile\CommunityController;
 
@@ -109,5 +110,11 @@ Route::prefix('trainer')->group(function () {
         Route::get('community/posts/{id}/comments', [CommunityController::class, 'getComments']);
         Route::post('community/posts/{id}/comments', [CommunityController::class, 'comment']);
         Route::post('community/posts/{id}/share', [CommunityController::class, 'share']);
+
+        // ── Leaves & Vacation ──────────────────────────
+        Route::get('leaves/summary', [LeaveController::class, 'summary']);
+        Route::get('leaves/types', [LeaveController::class, 'types']);
+        Route::get('leaves', [LeaveController::class, 'index']);
+        Route::post('leaves', [LeaveController::class, 'store']);
     });
 });

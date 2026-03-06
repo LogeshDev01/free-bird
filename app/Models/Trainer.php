@@ -36,6 +36,7 @@ class Trainer extends Authenticatable implements JWTSubject
         'dob',
         'phone',
         'email',
+        'password',
         'address',
         'zip_code',
         'country',
@@ -61,6 +62,8 @@ class Trainer extends Authenticatable implements JWTSubject
     ];
 
     protected $hidden = [
+        'password',
+        'remember_token',
         'created_at',
         'updated_at',
     ];
@@ -210,6 +213,14 @@ class Trainer extends Authenticatable implements JWTSubject
     public function statusHistory(): HasMany
     {
         return $this->hasMany(TrainerStatusHistory::class, 'trainer_id');
+    }
+
+    /**
+     * Leave requests for this trainer
+     */
+    public function trainerLeaves(): HasMany
+    {
+        return $this->hasMany(TrainerLeave::class, 'trainer_id');
     }
 
     public function state(): BelongsTo

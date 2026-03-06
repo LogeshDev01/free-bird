@@ -12,15 +12,15 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('fb_tbl_client', function (Blueprint $table) {
-            $table->foreignId('current_subscription_id')->nullable()->constrained('fb_tbl_client_subscriptions')->nullOnDelete();
+            // Consolidated into base
         });
 
         Schema::table('fb_tbl_diet_plan_category', function (Blueprint $table) {
-            $table->string('minimum_plan_tier')->nullable()->comment('Slug of the minimum plan required');
+            // Consolidated into base
         });
 
         Schema::table('fb_tbl_workout_category', function (Blueprint $table) {
-            $table->string('minimum_plan_tier')->nullable()->comment('Slug of the minimum plan required');
+            // Consolidated into base
         });
     }
 

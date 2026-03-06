@@ -34,14 +34,23 @@ class SlotController extends Controller
                 $query->where('date', 'LIKE', $request->month . '-%');
             }
 
-            $slots = $query->orderBy('date', 'asc')
-                           ->orderBy('start_time', 'asc')
-                           ->get();
+            $formattedSlots = $slots->map(function ($slot) {
+                return [
+                    'id'           => $slot->id,
+                    'type'         => $slot->type->name ?? 'N/A',
+                    'date'         => \Illuminate\Support\Carbon::parse($slot->date)->format('d M Y'),
+                    'start_time'   => \Illuminate\Support\Carbon::parse($slot->start_time)->format('g:i A'),
+                    'end_time'     => \Illuminate\Support\Carbon::parse($slot->end_time)->format('g:i A'),
+                    'note'         => $slot->note,
+                    'is_booked'    => $slot->is_booked,
+                    'created_at'   => \Illuminate\Support\Carbon::parse($slot->created_at)->format('d M Y'),
+                ];
+            });
 
             return response()->json([
                 'status'  => true,
                 'message' => 'Slots fetched successfully',
-                'data'    => $slots,
+                'data'    => $formattedSlots,
             ], 200);
         } catch (\Exception $e) {
             Log::error('Slot list failed', [
@@ -109,11 +118,21 @@ class SlotController extends Controller
             }
 
             $slot = $trainer->slots()->create($validated);
+            $slot->load('type:id,name');
 
             return response()->json([
                 'status'  => true,
                 'message' => 'Slot created successfully',
-                'data'    => $slot->load('type:id,name'),
+                'data'    => [
+                    'id'           => $slot->id,
+                    'type'         => $slot->type->name ?? 'N/A',
+                    'date'         => \Illuminate\Support\Carbon::parse($slot->date)->format('d M Y'),
+                    'start_time'   => \Illuminate\Support\Carbon::parse($slot->start_time)->format('g:i A'),
+                    'end_time'     => \Illuminate\Support\Carbon::parse($slot->end_time)->format('g:i A'),
+                    'note'         => $slot->note,
+                    'is_booked'    => $slot->is_booked,
+                    'created_at'   => \Illuminate\Support\Carbon::parse($slot->created_at)->format('d M Y'),
+                ],
             ], 201);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
@@ -178,11 +197,21 @@ class SlotController extends Controller
             }
 
             $slot->update($validated);
+            $slot->load('type:id,name');
 
             return response()->json([
                 'status'  => true,
                 'message' => 'Slot updated successfully',
-                'data'    => $slot->load('type:id,name'),
+                'data'    => [
+                    'id'           => $slot->id,
+                    'type'         => $slot->type->name ?? 'N/A',
+                    'date'         => \Illuminate\Support\Carbon::parse($slot->date)->format('d M Y'),
+                    'start_time'   => \Illuminate\Support\Carbon::parse($slot->start_time)->format('g:i A'),
+                    'end_time'     => \Illuminate\Support\Carbon::parse($slot->end_time)->format('g:i A'),
+                    'note'         => $slot->note,
+                    'is_booked'    => $slot->is_booked,
+                    'created_at'   => \Illuminate\Support\Carbon::parse($slot->created_at)->format('d M Y'),
+                ],
             ], 200);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([

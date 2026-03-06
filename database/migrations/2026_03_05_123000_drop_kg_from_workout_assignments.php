@@ -17,14 +17,14 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('fb_tbl_workout_assignment', function (Blueprint $table) {
-            $table->dropColumn('kg');
+            // Consolidated into base creation
         });
     }
 
     public function down(): void
     {
         Schema::table('fb_tbl_workout_assignment', function (Blueprint $table) {
-            $table->decimal('kg', 8, 2)->nullable()->after('custom_sets');
+            //
         });
     }
 };

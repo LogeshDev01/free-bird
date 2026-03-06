@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('name');
             $table->string('slug')->unique();
+            $table->text('description')->nullable();
             $table->enum('type', ['boolean', 'quota'])->default('boolean');
             $table->boolean('resets_on_billing')->default(false);
             $table->timestamps();

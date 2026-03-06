@@ -34,10 +34,9 @@ return new class extends Migration
             $table->string('country')->nullable();
 
             // Emergency Contact
-            $table->string('emergency_contact_person')->nullable();
-            $table->string('emergency_phone')->nullable();
-
-            $table->tinyInteger('status')->default(1);
+            $table->unsignedBigInteger('current_subscription_id')->nullable();
+            $table->tinyInteger('status')->default(1)->comment('1=active, 0=inactive');
+            $table->softDeletes();
             $table->timestamps();
         });
     }

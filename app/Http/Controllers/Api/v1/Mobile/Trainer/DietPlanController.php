@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\MealType;
 use App\Models\Trainer;
 use App\Models\DietPlan;
+use App\Models\Plan;
 use App\Models\DietPlanCategory;
 use App\Models\DietPlanAssignment;
 use Illuminate\Http\JsonResponse;
@@ -33,7 +34,7 @@ class DietPlanController extends Controller
             $categories = DietPlanCategory::where('is_active', true)
                 ->select(['id', 'name', 'image', 'description', 'minimum_plan_tier'])
                 ->withCount('dietPlans')
-                ->with('subsciptionPlans:id,name')
+                ->with('plan:id,name')
                 ->when($request->filled('search'), function ($query) use ($request) {
                     $search = str_replace(['%', '_'], ['\\%', '\\_'], $request->search);
                     $query->where('name', 'LIKE', "%{$search}%");
@@ -48,8 +49,8 @@ class DietPlanController extends Controller
                     'image'             => $category->image,
                     'description'       => $category->description,
                     'diet_plans_count'  => $category->diet_plans_count,
-                    'subscription_plan' => $category->subsciptionPlans
-                        ? ['id' => $category->subsciptionPlans->id, 'name' => $category->subsciptionPlans->name]
+                    'subscription_plan' => $category->plan
+                        ? ['id' => $category->plan->id, 'name' => $category->plan->name]
                         : null,
                 ];
             });
@@ -137,10 +138,27 @@ class DietPlanController extends Controller
             $dietPlans = $query->orderBy('name')
                                ->paginate($request->get('per_page', 20));
 
+            $formatted = collect($dietPlans->items())->map(function ($plan) {
+                return [
+                    'id'            => $plan->id,
+                    'name'          => $plan->name,
+                    'category'      => $plan->category->name ?? 'N/A',
+                    'meal_type'     => $plan->mealType->name ?? 'N/A',
+                    'meal_type_icon'=> $plan->mealType->icon ?? null,
+                    'calories'      => $plan->calories,
+                    'protein'       => $plan->protein,
+                    'carbs'         => $plan->carbs,
+                    'fats'          => $plan->fats,
+                    'image'         => $plan->image,
+                    'is_active'     => $plan->is_active,
+                    'created_at'    => \Illuminate\Support\Carbon::parse($plan->created_at)->format('d M Y'),
+                ];
+            });
+
             return response()->json([
                 'status'  => true,
                 'message' => 'Diet plans fetched successfully',
-                'data'    => $dietPlans->items(),
+                'data'    => $formatted,
                 'pagination' => [
                     'current_page' => $dietPlans->currentPage(),
                     'per_page'     => $dietPlans->perPage(),
@@ -180,7 +198,21 @@ class DietPlanController extends Controller
             return response()->json([
                 'status'  => true,
                 'message' => 'Diet plan details fetched successfully',
-                'data'    => $dietPlan,
+                'data'    => [
+                    'id'            => $dietPlan->id,
+                    'name'          => $dietPlan->name,
+                    'category'      => $dietPlan->category->name ?? 'N/A',
+                    'meal_type'     => $dietPlan->mealType->name ?? 'N/A',
+                    'meal_type_icon'=> $dietPlan->mealType->icon ?? null,
+                    'calories'      => $dietPlan->calories,
+                    'protein'       => $dietPlan->protein,
+                    'carbs'         => $dietPlan->carbs,
+                    'fats'          => $dietPlan->fats,
+                    'image'         => $dietPlan->image,
+                    'description'   => $dietPlan->description,
+                    'is_active'     => $dietPlan->is_active,
+                    'created_at'    => \Illuminate\Support\Carbon::parse($dietPlan->created_at)->format('d M Y'),
+                ],
             ], 200);
         } catch (\Exception $e) {
             Log::error('Diet plan detail failed', ['diet_plan_id' => $id, 'error' => $e->getMessage()]);

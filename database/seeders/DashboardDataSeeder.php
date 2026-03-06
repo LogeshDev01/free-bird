@@ -42,18 +42,17 @@ class DashboardDataSeeder extends Seeder
         $torontoZone = Zone::where('city_id', $toronto->id)->first();
         $calgaryZone = Zone::where('city_id', $calgary->id)->first();
 
-        // ── 2. The Trainer ─────────────────────────────────
         $trainer = Trainer::updateOrCreate(
             ['emp_id' => 'TRN0001'],
             [
                 'phone'          => '9876543210',
+                'password'       => Hash::make('123456'), // Ensure we can login
                 'first_name'     => 'Logesh',
                 'last_name'      => 'Dev',
                 'gender'         => 'Male',
                 'dob'            => '1995-01-01',
                 'email'          => 'logesh@example.com',
                 'address'        => '123 Tech Park',
-                'zone'           => 'Downtown',
                 'city_id'        => $toronto->id,
                 'state_id'       => $toronto->state_id,
                 'zone_id'        => $torontoZone->id,
@@ -62,7 +61,6 @@ class DashboardDataSeeder extends Seeder
                 'specialization' => 'Strength & Conditioning',
                 'experience'     => '5 Years',
                 'qualification'  => 'NSCA Certified Personal Trainer',
-                'emp_id'         => 'TRN0001',
                 'joining_date'   => '2024-01-01',
                 'status'         => Trainer::STATUS_ACTIVE,
             ]
@@ -136,12 +134,12 @@ class DashboardDataSeeder extends Seeder
         // ── 5. Sessions ────────────────────────────────────
         Session::updateOrCreate(
             ['trainer_id' => $trainer->id, 'client_id' => $client1->id, 'session_date' => $today, 'start_time' => '07:30:00'],
-            ['end_time' => '08:15:00', 'slot_id' => $slot1->id, 'status' => Session::STATUS_SCHEDULED, 'location' => 'Downtown']
+            ['end_time' => '08:15:00', 'slot_id' => $slot1->id, 'status' => Session::STATUS_SCHEDULED, 'location' => $toronto->id]
         );
 
         Session::updateOrCreate(
             ['trainer_id' => $trainer->id, 'client_id' => $client2->id, 'session_date' => $today, 'start_time' => '10:00:00'],
-            ['end_time' => '14:20:00', 'slot_id' => $slot2->id, 'status' => Session::STATUS_SCHEDULED, 'location' => 'Toronto']
+            ['end_time' => '14:20:00', 'slot_id' => $slot2->id, 'status' => Session::STATUS_SCHEDULED, 'location' => $vancouver->id]
         );
 
         // ── 6. Workouts & Diet Plans ───────────────────────
@@ -160,6 +158,31 @@ class DashboardDataSeeder extends Seeder
         TrainerRating::updateOrCreate(
             ['trainer_id' => $trainer->id, 'client_id' => $client1->id],
             ['rating' => 5, 'review' => 'Great trainer!']
+        );
+
+        // ── 9. Leaves ──────────────────────────────────────
+        $sickLeave = \App\Models\LeaveType::where('name', 'Sick Leave')->first();
+        \App\Models\TrainerLeave::updateOrCreate(
+            ['trainer_id' => $trainer->id, 'start_date' => Carbon::today()->addDays(5)->toDateString()],
+            [
+                'leave_type_id'   => $sickLeave->id,
+                'end_date'        => Carbon::today()->addDays(6)->toDateString(),
+                'total_days'      => 2,
+                'reason'          => 'Flu symptoms',
+                'status'          => \App\Models\TrainerLeave::STATUS_APPROVED,
+                'additional_note' => 'Will be back soon',
+            ]
+        );
+
+        \App\Models\TrainerLeave::updateOrCreate(
+            ['trainer_id' => $trainer->id, 'start_date' => Carbon::today()->addDays(15)->toDateString()],
+            [
+                'leave_type_id'   => $sickLeave->id,
+                'end_date'        => Carbon::today()->addDays(16)->toDateString(),
+                'total_days'      => 2,
+                'reason'          => 'Family event',
+                'status'          => \App\Models\TrainerLeave::STATUS_PENDING,
+            ]
         );
     }
 

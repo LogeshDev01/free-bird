@@ -42,7 +42,7 @@ class WaterLogController extends Controller
 
             // Default response if no log exists yet for this day
             $data = [
-                'date'            => $date,
+                'date'            => Carbon::parse($date)->format('d M Y'),
                 'total_consumed'  => $dailyLog->total_consumed_ml ?? 0,
                 'water_goal_ml'   => $dailyLog->water_goal_ml ?? 2000,
                 'emoji'           => $this->getEmoji($dailyLog->total_consumed_ml ?? 0, $dailyLog->water_goal_ml ?? 2000),
@@ -91,7 +91,7 @@ class WaterLogController extends Controller
                 $log = $dailyLogs->get($dateStr);
 
                 $stats[] = [
-                    'date'           => $dateStr,
+                    'date'           => $date->format('d M Y'),
                     'day_name'       => $date->format('D'),
                     'day_number'     => (int) $date->format('j'),
                     'total_consumed' => $log->total_consumed_ml ?? 0,

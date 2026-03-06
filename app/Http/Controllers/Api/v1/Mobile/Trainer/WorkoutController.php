@@ -128,6 +128,7 @@ class WorkoutController extends Controller
                     'rest'          => $w->rest_seconds . 's',
                     'duration'      => $w->duration_minutes,
                     'muscle_group'  => $w->muscle_group,
+                    'created_at'    => \Illuminate\Support\Carbon::parse($w->created_at)->format('d M Y'),
                 ];
             });
 
@@ -140,6 +141,7 @@ class WorkoutController extends Controller
                         'current_page' => $workouts->currentPage(),
                         'last_page'    => $workouts->lastPage(),
                         'total'        => $workouts->total(),
+                        'per_page'     => $workouts->perPage(),
                     ]
                 ],
             ], 200);
@@ -173,7 +175,21 @@ class WorkoutController extends Controller
             return response()->json([
                 'status'  => true,
                 'message' => 'Workout details fetched successfully',
-                'data'    => $workout,
+                'data'    => [
+                    'id'            => $workout->id,
+                    'name'          => $workout->name,
+                    'category'      => $workout->category->name ?? 'N/A',
+                    'thumbnail'     => $workout->image,
+                    'sets'          => $workout->sets,
+                    'reps'          => $workout->reps,
+                    'lbs'           => $workout->lbs,
+                    'kg'            => $workout->kg,
+                    'rest'          => $workout->rest_seconds . 's',
+                    'duration'      => $workout->duration_minutes,
+                    'muscle_group'  => $workout->muscle_group,
+                    'trainer'       => $workout->trainer->full_name ?? 'Admin',
+                    'created_at'    => \Illuminate\Support\Carbon::parse($workout->created_at)->format('d M Y'),
+                ],
             ], 200);
         } catch (\Exception $e) {
             Log::error('Workout detail failed', ['workout_id' => $id, 'error' => $e->getMessage()]);

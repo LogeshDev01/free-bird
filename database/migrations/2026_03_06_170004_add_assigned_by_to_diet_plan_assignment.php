@@ -13,27 +13,10 @@ return new class extends Migration
      * This brings DietPlanAssignment to parity so admin-sourced diet assignments
      * are tracked with a full audit trail.
      */
-    public function up(): void
-    {
-        Schema::table('fb_tbl_diet_plan_assignment', function (Blueprint $table) {
-            $table->unsignedBigInteger('assigned_by_id')
-                  ->nullable()
-                  ->after('trainer_id');
-
-            $table->string('assigned_by_type')
-                  ->nullable()
-                  ->after('assigned_by_id')
-                  ->comment('App\\Models\\Trainer or App\\Models\\User (Admin)');
-
-            $table->index(['assigned_by_type', 'assigned_by_id'], 'diet_assignment_assignedby_idx');
-        });
-    }
-
     public function down(): void
     {
         Schema::table('fb_tbl_diet_plan_assignment', function (Blueprint $table) {
-            $table->dropIndex('diet_assignment_assignedby_idx');
-            $table->dropColumn(['assigned_by_id', 'assigned_by_type']);
+            //
         });
     }
 };

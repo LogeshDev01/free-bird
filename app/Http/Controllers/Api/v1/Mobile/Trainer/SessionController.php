@@ -48,10 +48,33 @@ class SessionController extends Controller
                               ->orderBy('start_time', 'asc')
                               ->paginate($request->get('per_page', 20));
 
+            $formatted = collect($sessions->items())->map(function ($session) {
+                return [
+                    'id'           => $session->id,
+                    'client'       => [
+                        'id'          => $session->client->id,
+                        'full_name'   => $session->client->full_name,
+                        'profile_pic' => $session->client->profile_pic,
+                    ],
+                    'session_date' => \Illuminate\Support\Carbon::parse($session->session_date)->format('d M Y'),
+                    'start_time'   => \Illuminate\Support\Carbon::parse($session->start_time)->format('g:i A'),
+                    'end_time'     => \Illuminate\Support\Carbon::parse($session->end_time)->format('g:i A'),
+                    'location'     => $session->location,
+                    'status'       => $session->status,
+                    'created_at'   => \Illuminate\Support\Carbon::parse($session->created_at)->format('d M Y'),
+                ];
+            });
+
             return response()->json([
                 'status'  => true,
                 'message' => 'Sessions fetched successfully',
-                'data'    => $sessions,
+                'data'    => $formatted,
+                'pagination' => [
+                    'current_page' => $sessions->currentPage(),
+                    'per_page'     => $sessions->perPage(),
+                    'total'        => $sessions->total(),
+                    'last_page'    => $sessions->lastPage(),
+                ],
             ], 200);
         } catch (\Exception $e) {
             Log::error('Session list failed', [
@@ -81,10 +104,27 @@ class SessionController extends Controller
                 ->orderBy('start_time', 'asc')
                 ->get();
 
+            $formatted = $sessions->map(function ($session) {
+                return [
+                    'id'           => $session->id,
+                    'client'       => [
+                        'id'          => $session->client->id,
+                        'full_name'   => $session->client->full_name,
+                        'profile_pic' => $session->client->profile_pic,
+                    ],
+                    'session_date' => \Illuminate\Support\Carbon::parse($session->session_date)->format('d M Y'),
+                    'start_time'   => \Illuminate\Support\Carbon::parse($session->start_time)->format('g:i A'),
+                    'end_time'     => \Illuminate\Support\Carbon::parse($session->end_time)->format('g:i A'),
+                    'location'     => $session->location,
+                    'status'       => $session->status,
+                    'created_at'   => \Illuminate\Support\Carbon::parse($session->created_at)->format('d M Y'),
+                ];
+            });
+
             return response()->json([
                 'status'  => true,
                 'message' => 'Today\'s sessions fetched successfully',
-                'data'    => $sessions,
+                'data'    => $formatted,
             ], 200);
         } catch (\Exception $e) {
             Log::error('Today sessions failed', [
@@ -278,9 +318,9 @@ class SessionController extends Controller
                 ->map(function($daySessions, $date) {
                     $dt = Carbon::parse($date);
                     return [
-                        'date'          => $date,
+                        'date'          => \Illuminate\Support\Carbon::parse($date)->format('d M Y'),
                         'day_label'     => $dt->isToday() ? 'Today' : ($dt->isTomorrow() ? 'Tomorrow' : $dt->format('l')),
-                        'date_display'  => $dt->format('D , M j'), // e.g., Tue , Dec 2
+                        'date_display'  => $dt->format('d M Y'), 
                         'day_short'     => $dt->format('D'), // e.g., T
                         'day_number'    => $dt->format('d'), // e.g., 23
                         'month_year'    => $dt->format('F Y'), // e.g., December 2028

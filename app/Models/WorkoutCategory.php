@@ -33,7 +33,7 @@ class WorkoutCategory extends Model
         return $this->belongsTo(WorkoutCategoryType::class, 'workout_category_type_id');
     }
 
-    public function plan()
+    public function plan(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Plan::class, 'minimum_plan_tier');
     }

@@ -107,7 +107,18 @@ class AuthController extends Controller
             'expires_in' => auth()->guard('trainer')->factory()->getTTL() * 60,
             'refresh_token' => $refreshToken,
             'refresh_expires_in' => 30 * 24 * 60 * 60,
-            'trainer' => $trainer
+            'trainer' => [
+                'id'           => $trainer->id,
+                'first_name'   => $trainer->first_name,
+                'last_name'    => $trainer->last_name,
+                'full_name'    => $trainer->full_name,
+                'phone'        => $trainer->phone,
+                'email'        => $trainer->email,
+                'profile_pic'  => $trainer->profile_pic,
+                'dob'          => $trainer->dob ? \Illuminate\Support\Carbon::parse($trainer->dob)->format('d M Y') : null,
+                'joining_date' => $trainer->joining_date ? \Illuminate\Support\Carbon::parse($trainer->joining_date)->format('d M Y') : null,
+                'created_at'   => \Illuminate\Support\Carbon::parse($trainer->created_at)->format('d M Y'),
+            ]
         ]);
     }
 

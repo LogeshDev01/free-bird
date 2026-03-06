@@ -45,7 +45,7 @@ class ClientResource extends JsonResource
                 'plan_name' => $plan->name,
                 'plan_slug' => $plan->slug,
                 'status' => $this->currentSubscription->status,
-                'ends_at' => $this->currentSubscription->ends_at,
+                'ends_at' => $this->currentSubscription->ends_at ? \Illuminate\Support\Carbon::parse($this->currentSubscription->ends_at)->format('d M Y') : null,
                 'features' => $features
             ];
         }
@@ -63,7 +63,7 @@ class ClientResource extends JsonResource
             'subscription' => $subscriptionData,
             
             // Conditionally loaded relations
-            'joined_at' => $this->pivot ? $this->pivot->start_date : null,
+            'joined_at' => ($this->pivot && $this->pivot->start_date) ? \Illuminate\Support\Carbon::parse($this->pivot->start_date)->format('d M Y') : null,
             'workout_assignments' => $this->whenLoaded('workoutAssignments'),
             'diet_plan_assignments' => $this->whenLoaded('dietPlanAssignments'),
         ];

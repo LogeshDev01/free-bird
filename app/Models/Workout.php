@@ -27,6 +27,7 @@ class Workout extends Model
         'reps',
         'rest_seconds',
         'is_active',
+        'minimum_plan_tier',
         'lbs',
         'kg',
         'weight_unit',
@@ -53,6 +54,19 @@ class Workout extends Model
     public function trainer(): BelongsTo
     {
         return $this->belongsTo(Trainer::class, 'trainer_id');
+    }
+
+    public function plan(): BelongsTo
+    {
+        return $this->belongsTo(Plan::class, 'minimum_plan_tier');
+    }
+
+    /**
+     * Get the required plan tier, inheriting from category if not explicitly set.
+     */
+    public function getRequiredPlanTierAttribute(): ?int
+    {
+        return $this->minimum_plan_tier ?? $this->category?->minimum_plan_tier;
     }
 
     public function assignments(): HasMany

@@ -28,10 +28,26 @@ class NotificationController extends Controller
                 ->orderBy('created_at', 'desc')
                 ->paginate($request->get('per_page', 20));
 
+            $formatted = collect($notifications->items())->map(function ($notification) {
+                return [
+                    'id'         => $notification->id,
+                    'title'      => $notification->title,
+                    'message'    => $notification->message,
+                    'is_read'    => !is_null($notification->read_at),
+                    'created_at' => \Illuminate\Support\Carbon::parse($notification->created_at)->format('d M Y'),
+                ];
+            });
+
             return response()->json([
                 'status'  => true,
                 'message' => 'Notifications fetched successfully',
-                'data'    => $notifications,
+                'data'    => $formatted,
+                'pagination' => [
+                    'current_page' => $notifications->currentPage(),
+                    'per_page'     => $notifications->perPage(),
+                    'total'        => $notifications->total(),
+                    'last_page'    => $notifications->lastPage(),
+                ],
             ], 200);
         } catch (\Exception $e) {
             Log::error('Notification list failed', [

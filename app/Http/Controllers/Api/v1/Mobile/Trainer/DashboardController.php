@@ -43,6 +43,8 @@ class DashboardController extends Controller
                 'specialization' => $trainer->specialization,
                 'rating'         => $trainer->getAverageRating(),
                 'qr_code'        => $trainer->qr_code,
+                'dob'            => $trainer->dob ? Carbon::parse($trainer->dob)->format('d M Y') : null,
+                'joining_date'   => $trainer->joining_date ? Carbon::parse($trainer->joining_date)->format('d M Y') : null,
             ];
 
             // ── 2. Dashboard Stats Cards ────────────────────────
