@@ -84,14 +84,12 @@ class WorkoutController extends Controller
     { 
         try {
             $query = Workout::where('is_active', true)
-                ->select(['id', 'category_id', 'name', 'image', 'sets', 'reps', 'lbs', 'rest_seconds', 'muscle_group']);
+                ->with('category:id,name')
+                ->select(['id', 'category_id', 'name', 'image', 'sets', 'reps', 'lbs', 'kg', 'rest_seconds', 'muscle_group', 'duration_minutes', 'created_at']);
 
+            // 1. Category Filter
             if ($request->filled('category_ids')) {
                 $categoryIds = $request->input('category_ids');
-
-                // Normalize: support both array format and comma-separated string
-                // Array:  ?category_ids[]=1&category_ids[]=2
-                // String: ?category_ids=1,2  (fallback)
                 if (is_string($categoryIds)) {
                     $categoryIds = array_filter(array_map('intval', explode(',', $categoryIds)));
                 } else {
@@ -103,7 +101,7 @@ class WorkoutController extends Controller
                 }
             }
 
-            // ✅ Enhanced Search functionality
+            // 2. Search Functionality
             if ($request->filled('search')) {
                 $search = str_replace(['%', '_'], ['\\%', '\\_'], $request->search);
                 $query->where(function ($q) use ($search) {
@@ -112,13 +110,14 @@ class WorkoutController extends Controller
                 });
             }
 
-            $workouts = $query->orderBy('name')
-                              ->paginate($request->get('per_page', 20));
+            $workouts = $query->orderBy('name')->paginate($request->get('per_page', 20));
 
-            // Format for UI (consistent keys)
+            // 3. Format & Grouping
             $formattedWorkouts = collect($workouts->items())->map(function ($w) {
                 return [
                     'id'            => $w->id,
+                    'category_id'   => $w->category_id,
+                    'category_name' => $w->category->name ?? 'N/A',
                     'name'          => $w->name,
                     'thumbnail'     => $w->image,
                     'sets'          => $w->sets,
@@ -132,11 +131,20 @@ class WorkoutController extends Controller
                 ];
             });
 
+            // Group the formatted workouts for the current page
+            $groupedData = $formattedWorkouts->groupBy('category_id')->map(function ($items, $categoryId) {
+                return [
+                    'category_id'   => $categoryId,
+                    'category_name' => $items->first()['category_name'],
+                    'workouts'      => $items->values()
+                ];
+            })->values();
+
             return response()->json([
                 'status'  => true,
                 'message' => 'Workouts fetched successfully',
                 'data'    => [
-                    'list' => $formattedWorkouts,
+                    'list' => $groupedData,
                     'meta' => [
                         'current_page' => $workouts->currentPage(),
                         'last_page'    => $workouts->lastPage(),
