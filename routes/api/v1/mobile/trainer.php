@@ -49,6 +49,8 @@ Route::prefix('trainer')->group(function () {
         Route::get('employment-info', [TrainerController::class, 'employmentInfo']);
 
         // ── Profile ────────────────────────────────────
+        Route::get('profile/overview', [ProfileController::class, 'overview']);
+        Route::get('profile/analytics', [ProfileController::class, 'analytics']);
         Route::get('profile', [ProfileController::class, 'show']);
         Route::put('profile', [ProfileController::class, 'update']);
         Route::post('profile/upload-pic', [ProfileController::class, 'uploadProfilePic']);
@@ -58,6 +60,7 @@ Route::prefix('trainer')->group(function () {
         Route::get('clients/today', [ClientController::class, 'today']);
         Route::get('clients/sessions', [ClientController::class, 'clientSessions']);
         Route::get('clients', [ClientController::class, 'index']);
+        Route::get('clients/{id}/details', [ClientController::class, 'details']);
         Route::get('clients/{id}', [ClientController::class, 'show']);
 
         // ── Sessions ───────────────────────────────────

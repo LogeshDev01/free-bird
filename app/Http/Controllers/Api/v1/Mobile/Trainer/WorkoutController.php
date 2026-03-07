@@ -245,6 +245,17 @@ class WorkoutController extends Controller
      *
      * Creates: (clients × dates × workouts) rows sharing a single batch_id.
      */
+
+    // json data to be passed in the performance data
+    //       {
+    //     "set": 1,
+    //     "actual_reps": 12,
+    //     "actual_kg": 55.0,
+    //     "actual_duration": 45,
+    //     "rpe": 7,
+    //     "status": "done"
+    //   }
+
     public function assign(Request $request): JsonResponse
     {
         try {

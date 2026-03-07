@@ -129,6 +129,21 @@ class Client extends Authenticatable
         return $this->belongsTo(City::class, 'city_id');
     }
 
+    public function dailyMetrics(): HasMany
+    {
+        return $this->hasMany(ClientDailyMetric::class, 'client_id');
+    }
+
+    public function progressPhotos(): HasMany
+    {
+        return $this->hasMany(ClientProgressPhoto::class, 'client_id');
+    }
+
+    public function medicalReports(): HasMany
+    {
+        return $this->hasMany(ClientMedicalReport::class, 'client_id');
+    }
+
     public function zone(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Zone::class, 'zone_id');

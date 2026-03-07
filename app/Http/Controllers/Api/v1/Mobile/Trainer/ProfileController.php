@@ -193,4 +193,121 @@ class ProfileController extends Controller
             ], 500);
         }
     }
+    /**
+     * GET /api/v1/mobile/trainer/profile/overview
+     * Provides stats and analytics with dynamic filtering.
+     * Params: ?month=12&year=2025
+     */
+    /**
+     * GET /api/v1/mobile/trainer/profile/overview
+     * Provides profile info, fixed current stats, AND initial current-month analytics.
+     */
+    public function overview(): JsonResponse
+    {
+        try {
+            $trainer = auth('trainer')->user();
+            $now = now();
+
+            // 1. Fixed Stats (Current Month)
+            $sessionMonthCount = $trainer->sessions()
+                ->whereMonth('session_date', $now->month)
+                ->whereYear('session_date', $now->year)
+                ->whereIn('status', [\App\Models\Session::STATUS_SCHEDULED, \App\Models\Session::STATUS_COMPLETED])
+                ->count();
+
+            $stats = [
+                'total_clients'      => $trainer->clients()->count(),
+                'active_clients'     => $trainer->activeClients()->count(),
+                'sessions_month'     => $sessionMonthCount,
+                'sessions_all_time'  => $trainer->sessions()->whereIn('status', [\App\Models\Session::STATUS_SCHEDULED, \App\Models\Session::STATUS_COMPLETED])->count(),
+                'current_month_name' => $now->format('F'),
+            ];
+
+            // 2. Initial Analytics (Current Month - Week Ranges)
+            $analytics = $this->calculateWeeklyData($trainer, $now->year, $now->month);
+
+            return response()->json([
+                'status'  => true,
+                'message' => 'Profile overview fetched successfully',
+                'data'    => [
+                    'profile' => [
+                        'id'             => $trainer->id,
+                        'profile_pic'    => $trainer->profile_pic,
+                        'full_name'      => $trainer->full_name,
+                        'specialization' => $trainer->specialization ?? 'Strength & Conditioning Coach',
+                        'rating'         => $trainer->getAverageRating(),
+                        'joining_date'   => $trainer->joining_date ? \Illuminate\Support\Carbon::parse($trainer->joining_date)->format('d M Y') : null,
+                    ],
+                    'stats'     => $stats,
+                    'analytics' => $analytics,
+                ],
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::error('Trainer Profile Overview failed', ['error' => $e->getMessage()]);
+            return response()->json(['status' => false, 'message' => 'Something went wrong.'], 500);
+        }
+    }
+
+    /**
+     * GET /api/v1/mobile/trainer/profile/analytics
+     * Provides dynamic weekly analytics for a specific month/year.
+     */
+    public function analytics(Request $request): JsonResponse
+    {
+        try {
+            $trainer = auth('trainer')->user();
+            $year  = $request->get('year', now()->year);
+            $month = $request->get('month', now()->month); 
+
+            $analytics = $this->calculateWeeklyData($trainer, $year, $month);
+
+            return response()->json([
+                'status'  => true,
+                'message' => 'Analytics fetched successfully',
+                'data'    => $analytics,
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::error('Trainer Profile Analytics failed', ['error' => $e->getMessage()]);
+            return response()->json(['status' => false, 'message' => 'Something went wrong.'], 500);
+        }
+    }
+
+    /**
+     * Helper to calculate 7-day groups for a month.
+     */
+    private function calculateWeeklyData($trainer, $year, $month)
+    {
+        $referenceDate = \Carbon\Carbon::create($year, $month, 1);
+        $daysInMonth   = $referenceDate->daysInMonth;
+        $monthShort    = $referenceDate->format('M');
+
+        $data = [];
+        $currentDay = 1;
+
+        while ($currentDay <= $daysInMonth) {
+            $endDay = min($currentDay + 6, $daysInMonth);
+            
+            $count = \App\Models\Session::where('trainer_id', $trainer->id)
+                ->whereYear('session_date', $year)
+                ->whereMonth('session_date', $month)
+                ->whereDay('session_date', '>=', $currentDay)
+                ->whereDay('session_date', '<=', $endDay)
+                ->whereIn('status', [\App\Models\Session::STATUS_SCHEDULED, \App\Models\Session::STATUS_COMPLETED])
+                ->count();
+
+            $data[] = [
+                'label' => "$currentDay-$endDay $monthShort",
+                'value' => $count,
+            ];
+            
+            $currentDay += 7;
+        }
+
+        return [
+            'title' => $referenceDate->format('F, Y'),
+            'data'  => $data
+        ];
+    }
 }

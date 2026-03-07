@@ -24,6 +24,14 @@ class SupportController extends Controller
                 $query->whereIn('type', [$type, 'common']);
             }
 
+            if ($request->filled('search')) {
+                $search = str_replace(['%', '_'], ['\\%', '\\_'], $request->search);
+                $query->where(function ($q) use ($search) {
+                    $q->where('question', 'LIKE', "%{$search}%")
+                      ->orWhere('answer', 'LIKE', "%{$search}%");
+                });
+            }
+
             $faqs = $query->orderBy('sort_order', 'asc')->get();
 
             return response()->json(['status' => true, 'data' => $faqs], 200);

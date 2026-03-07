@@ -44,6 +44,9 @@ class WorkoutAssignment extends Model
         'due_date',
         'status',
         'notes',
+        'performance_data', 
+        'is_completed',
+        'completed_at',
     ];
 
     protected $casts = [
@@ -51,8 +54,23 @@ class WorkoutAssignment extends Model
         'due_date'      => 'date',
         'status'        => 'integer',
         'custom_sets'   => 'array',
+        'performance_data' => 'array',
         'duration'      => 'integer',
+        'is_completed'  => 'boolean',
+        'completed_at'  => 'datetime',
     ];
+
+    // ─── Scopes ───────────────────────────────────────────────────────────────
+
+    public function scopeCompleted($query)
+    {
+        return $query->where('is_completed', true);
+    }
+
+    public function scopeYesterday($query)
+    {
+        return $query->whereDate('assigned_date', \Carbon\Carbon::yesterday());
+    }
 
     // ─── Relationships ────────────────────────────────────────────────────────
 

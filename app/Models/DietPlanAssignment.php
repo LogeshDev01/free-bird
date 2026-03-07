@@ -28,14 +28,32 @@ class DietPlanAssignment extends Model
         'due_date',
         'status',
         'notes',
+        'performance_data',
+        'is_completed',
+        'completed_at',
     ];
 
     protected $casts = [
         'assigned_date' => 'date',
         'due_date'      => 'date',
         'status'        => 'integer',
+        'performance_data' => 'array',
+        'is_completed'  => 'boolean',
+        'completed_at'  => 'datetime',
         'deleted_at'    => 'datetime',
     ];
+
+    // ─── Scopes ───────────────────────────────────────────────────────────────
+
+    public function scopeCompleted($query)
+    {
+        return $query->where('is_completed', true);
+    }
+
+    public function scopeYesterday($query)
+    {
+        return $query->whereDate('assigned_date', \Carbon\Carbon::yesterday());
+    }
 
     // ─── Relationships ────────────────────────────────────
 

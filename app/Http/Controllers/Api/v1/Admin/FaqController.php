@@ -26,6 +26,14 @@ class FaqController extends Controller
                 $query->where('is_active', $request->boolean('is_active'));
             }
 
+            if ($request->filled('search')) {
+                $search = str_replace(['%', '_'], ['\\%', '\\_'], $request->search);
+                $query->where(function ($q) use ($search) {
+                    $q->where('question', 'LIKE', "%{$search}%")
+                      ->orWhere('answer', 'LIKE', "%{$search}%");
+                });
+            }
+
             $faqs = $query->orderBy('sort_order', 'asc')
                 ->orderBy('created_at', 'desc')
                 ->paginate($request->get('per_page', 20));

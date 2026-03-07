@@ -8,6 +8,9 @@ use App\Models\Session;
 use App\Models\Trainer;
 use App\Models\WorkoutAssignment;
 use App\Models\DietPlanAssignment;
+use App\Models\ClientDailyMetric;
+use App\Models\ClientProgressPhoto;
+use App\Models\ClientMedicalReport;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -135,6 +138,185 @@ class ClientController extends Controller
                 'status'  => false,
                 'message' => 'Something went wrong. Please try again.',
             ], 500);
+        }
+    }
+
+    /**
+     * GET /api/v1/mobile/trainer/clients/{id}/details
+     * Comprehensive "Client Dashboard" for trainers.
+     */
+    public function details($id): JsonResponse
+    {
+        try {
+            $trainer = auth('trainer')->user();
+            $today = Carbon::today();
+            $yesterday = Carbon::yesterday();
+
+            $client = $trainer->clients()
+                ->where('fb_tbl_client.id', $id)
+                ->with([
+                    'dailyMetrics' => function ($q) use ($today) {
+                        $q->where('log_date', $today);
+                    },
+                    'progressPhotos' => function ($q) use ($today) {
+                        $q->where('log_date', $today);
+                    },
+                    'medicalReports' => function ($q) {
+                        $q->latest()->limit(5);
+                    },
+                    'waterDailyLogs' => function ($q) use ($today) {
+                        $q->where('log_date', $today);
+                    }
+                ])
+                ->first();
+
+            if (!$client) {
+                return response()->json(['status' => false, 'message' => 'Client not found.'], 404);
+            }
+
+            // 1. Current Progress (Today)
+            $todayMetrics = $client->dailyMetrics->first();
+            $todayWater = $client->waterDailyLogs->first();
+            
+            // 2. Performance Comparison (Trends)
+            // Get the EARLIER recorded metric to show ↑ or ↓
+            $lastMetrics = $client->dailyMetrics()
+                ->where('log_date', '<', $today)
+                ->orderBy('log_date', 'desc')
+                ->first();
+
+            // 3. Assignments (Today & Yesterday)
+            $workoutToday = WorkoutAssignment::where('client_id', $client->id)
+                ->whereDate('assigned_date', $today)
+                ->with('workout.category')
+                ->first();
+
+            $dietToday = DietPlanAssignment::where('client_id', $client->id)
+                ->whereDate('assigned_date', $today)
+                ->with('dietPlan.category')
+                ->first();
+
+            $workoutYesterday = WorkoutAssignment::where('client_id', $client->id)
+                ->whereDate('assigned_date', $yesterday)
+                ->with('workout.category')
+                ->first();
+
+            $dietYesterday = DietPlanAssignment::where('client_id', $client->id)
+                ->whereDate('assigned_date', $yesterday)
+                ->with('dietPlan.category')
+                ->first();
+
+            // 4. Photos (Today or latest)
+            $latestPhotos = $client->progressPhotos->first() ?? $client->progressPhotos()->latest()->first();
+
+            // 5. Trend Math Helper
+            $calcTrend = function ($current, $previous) {
+                if (!$current || !$previous) return ['value' => 0, 'direction' => 'none'];
+                $diff = $current - $previous;
+                return [
+                    'value' => abs(round($diff, 1)),
+                    'direction' => $diff > 0 ? 'up' : ($diff < 0 ? 'down' : 'none'),
+                    'display' => ($diff > 0 ? '+' : '') . round($diff, 1)
+                ];
+            };
+
+            return response()->json([
+                'status'  => true,
+                'message' => 'Client metrics fetched successfully',
+                'data'    => [
+                    'header' => [
+                        'id' => $client->id,
+                        'name' => $client->full_name,
+                        'profile_pic' => $client->profile_pic,
+                        'goal' => $client->goal ?? 'Weight Loss & Toning',
+                        'vitals' => [
+                            'age' => $client->dob ? Carbon::parse($client->dob)->age : 25,
+                            'weight' => $client->weight . ' kg', 
+                            'height' => $client->height . ' cm',
+                        ]
+                    ],
+                    'today_progress' => [
+                        'water' => [
+                            'value' => ($todayWater->total_consumed_ml ?? 0) / 1000 . 'L',
+                            'goal'  => ($todayWater->water_goal_ml ?? 3000) / 1000 . 'L',
+                            'percentage' => $todayWater ? ($todayWater->total_consumed_ml / $todayWater->water_goal_ml) * 100 : 0
+                        ],
+                        'steps' => [
+                            'value' => $todayMetrics->steps ?? 0,
+                            'goal'  => 10000, // Static goal for now or from settings
+                        ]
+                    ],
+                    'assignments' => [
+                        'workout' => $workoutToday ? [
+                            'id' => $workoutToday->id,
+                            'name' => $workoutToday->workout->name ?? 'Exercise',
+                            'image' => $workoutToday->workout->category->image ?? null,
+                            'duration' => $workoutToday->duration / 60 . ' mins',
+                            'is_completed' => $workoutToday->is_completed
+                        ] : null,
+                        'diet' => $dietToday ? [
+                            'id' => $dietToday->id,
+                            'name' => $dietToday->dietPlan->name ?? 'Meal Plan',
+                            'image' => $dietToday->dietPlan->category->image ?? null,
+                            'is_completed' => $dietToday->is_completed
+                        ] : null,
+                    ],
+                    'yesterday_overview' => [
+                        'workout' => $workoutYesterday ? [
+                            'name' => $workoutYesterday->workout->name ?? 'Exercise',
+                            'is_completed' => $workoutYesterday->is_completed,
+                         ] : null,
+                        'diet' => $dietYesterday ? [
+                            'name' => $dietYesterday->dietPlan->name ?? 'Meal Plan',
+                            'is_completed' => $dietYesterday->is_completed,
+                        ] : null,
+                    ],
+                    'metrics' => [
+                        'weight' => [
+                            'current' => ($todayMetrics->weight_kg ?? $client->weight) . ' kg',
+                            'trend'   => $calcTrend($todayMetrics->weight_kg ?? $client->weight, $lastMetrics->weight_kg ?? $client->weight)
+                        ],
+                        'bmi' => [
+                            'current' => $todayMetrics->bmi ?? 24.8,
+                            'trend'   => $calcTrend($todayMetrics->bmi ?? 24.8, $lastMetrics->bmi ?? 24.8)
+                        ],
+                        'bfi' => [
+                            'current' => ($todayMetrics->fat_percent ?? 18.5) . '%',
+                            'trend'   => $calcTrend($todayMetrics->fat_percent ?? 18.5, $lastMetrics->fat_percent ?? 18.5)
+                        ]
+                    ],
+                    'body_measurements' => [
+                        'chest' => ($todayMetrics->chest_cm ?? 140) . ' cm',
+                        'waist' => ($todayMetrics->waist_cm ?? 82) . ' cm',
+                        'neck'  => ($todayMetrics->neck_cm ?? 38) . ' cm',
+                    ],
+                    'progress_photos' => [
+                        'date' => $latestPhotos ? $latestPhotos->log_date->format('M d, Y') : 'No photos yet',
+                        'front_view' => $latestPhotos->front_view ?? null,
+                        'side_view'  => $latestPhotos->side_view ?? null,
+                    ],
+                    'client_status' => [
+                        'health' => 'None reported', // Link to health profile/notes
+                        'diet_preference' => 'Non-Veg', 
+                    ],
+                    'medical_reports' => $client->medicalReports->map(function ($report) {
+                        return [
+                            'id' => $report->id,
+                            'name' => $report->name,
+                            'date' => $report->report_date->format('d M Y'),
+                            'file' => $report->file_path
+                        ];
+                    })
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error('Client detail dashboard failed', [
+                'trainer_id' => auth('trainer')->id(),
+                'client_id'  => $id,
+                'error'      => $e->getMessage(),
+            ]);
+
+            return response()->json(['status' => false, 'message' => 'Something went wrong.'], 500);
         }
     }
 
