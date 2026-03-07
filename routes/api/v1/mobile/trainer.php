@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\v1\Mobile\Trainer\TrainerController;
 use App\Http\Controllers\Api\v1\Mobile\Trainer\LeaveController;
 use App\Http\Controllers\Api\v1\Mobile\WaterLogController;
 use App\Http\Controllers\Api\v1\Mobile\CommunityController;
+use App\Http\Controllers\Api\v1\Mobile\SupportController;
 
 Route::prefix('trainer')->group(function () {
 
@@ -25,6 +26,10 @@ Route::prefix('trainer')->group(function () {
     */
     Route::post('send-otp', [AuthController::class, 'sendOtp']);
     Route::post('verify-otp', [AuthController::class, 'verifyOtp']);
+
+    // ── Support / FAQs ────────────────────────────────
+    Route::get('faqs', [SupportController::class, 'getFaqs']);
+    Route::get('pages/{key}', [SupportController::class, 'getPage']);
 
     /*
     |--------------------------------------------------------------------------

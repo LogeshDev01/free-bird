@@ -43,4 +43,11 @@ Route::middleware(['jwt.cookie', 'auth:api'])->group(function () {
     // Per-trainer and per-client views
     Route::get('trainers/{trainerId}/clients', [TrainerClientController::class, 'trainerClients']);
     Route::get('clients/{clientId}/trainers', [TrainerClientController::class, 'clientTrainers']);
+
+    // FAQs Management
+    Route::apiResource('faqs', \App\Http\Controllers\Api\v1\Admin\FaqController::class);
+
+    // Business Settings
+    Route::get('business-settings', [\App\Http\Controllers\Api\v1\Admin\BusinessSettingController::class, 'index']);
+    Route::post('business-settings', [\App\Http\Controllers\Api\v1\Admin\BusinessSettingController::class, 'updateSetting']);
 });

@@ -3,8 +3,17 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\v1\Mobile\WaterLogController;
 use App\Http\Controllers\Api\v1\Mobile\CommunityController;
+use App\Http\Controllers\Api\v1\Mobile\SupportController;
 
 Route::prefix('client')->group(function () {
+
+    /*
+    |--------------------------------------------------------------------------
+    | 🔓 PUBLIC (No Auth Required)
+    |--------------------------------------------------------------------------
+    */
+    Route::get('faqs', [SupportController::class, 'getFaqs']);
+    Route::get('pages/{key}', [SupportController::class, 'getPage']);
 
     /*
     |--------------------------------------------------------------------------
