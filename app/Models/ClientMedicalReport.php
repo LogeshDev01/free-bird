@@ -20,6 +20,11 @@ class ClientMedicalReport extends Model
         'report_date' => 'date',
     ];
 
+    public function getFilePathAttribute($value): ?string
+    {
+        return $value ? asset('storage/' . $value) : null;
+    }
+
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class, 'client_id');

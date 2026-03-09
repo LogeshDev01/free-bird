@@ -358,9 +358,38 @@ class WorkoutController extends Controller
                 foreach ($validated['client_ids'] as $clientId) {
                     foreach ($validated['assigned_dates'] as $assignedDate) {
                         foreach ($validated['assignments'] as $item) {
-                            // ── Auto-calculate total duration from this workout's custom_sets ──
+                            // ── Duplicate Check ──────────────────────────────────────
+                            // If this specific workout is already assigned for this date...
+                            $existing = WorkoutAssignment::where('client_id', $clientId)
+                                ->whereDate('assigned_date', $assignedDate)
+                                ->where('workout_id', $item['workout_id'])
+                                ->first();
+
+                            // ── Auto-calculate total duration ────────────────────────
                             $totalDuration = $this->calculateDuration($item['custom_sets'] ?? []);
 
+                            if ($existing) {
+                                // If it's already COMPLETED or IN_PROGRESS, skip it entirely
+                                // We don't want to reset their hard work.
+                                if ($existing->status >= WorkoutAssignment::STATUS_IN_PROGRESS) {
+                                    continue;
+                                }
+
+                                // If it's still PENDING/DRAFT, update it with the new configuration
+                                $existing->update([
+                                    'batch_id'    => $batchId,
+                                    'category_id' => $item['category_id'],
+                                    'custom_sets' => $item['custom_sets'] ?? null,
+                                    'duration'    => $totalDuration,
+                                    'notes'       => $validated['notes'] ?? null,
+                                    'due_date'    => $validated['due_date'] ?? null,
+                                ]);
+                                $createdAssignments[] = $existing->id;
+                                $createdCount++;
+                                continue;
+                            }
+
+                            // ── Create New Record ─────────────────────────────────────
                             $row = WorkoutAssignment::create([
                                 'trainer_id'       => $trainer->id,
                                 'assigned_by_id'   => $trainer->id,

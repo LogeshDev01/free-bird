@@ -231,8 +231,8 @@ class ClientController extends Controller
                         'goal' => $client->goal ?? 'Weight Loss & Toning',
                         'vitals' => [
                             'age' => $client->dob ? Carbon::parse($client->dob)->age : 25,
-                            'weight' => $client->weight . ' kg', 
-                            'height' => $client->height . ' cm',
+                            'weight' => $client->weight ?? 0 . ' kg', 
+                            'height' => $client->height ?? 0 . ' cm',
                         ]
                     ],
                     'today_progress' => [
@@ -251,7 +251,7 @@ class ClientController extends Controller
                             'id' => $workoutToday->id,
                             'name' => $workoutToday->workout->name ?? 'Exercise',
                             'image' => $workoutToday->workout->category->image ?? null,
-                            'duration' => $workoutToday->duration / 60 . ' mins',
+                            'duration' => ($workoutToday->duration ?? 0) / 60 . ' mins',
                             'is_completed' => $workoutToday->is_completed
                         ] : null,
                         'diet' => $dietToday ? [
@@ -273,22 +273,22 @@ class ClientController extends Controller
                     ],
                     'metrics' => [
                         'weight' => [
-                            'current' => ($todayMetrics->weight_kg ?? $client->weight) . ' kg',
-                            'trend'   => $calcTrend($todayMetrics->weight_kg ?? $client->weight, $lastMetrics->weight_kg ?? $client->weight)
+                            'current' => ($todayMetrics->weight_kg ?? $client->weight ?? 0) . ' kg',
+                            'trend'   => $calcTrend($todayMetrics->weight_kg ?? $client->weight ?? 0, $lastMetrics->weight_kg ?? $client->weight ?? 0)
                         ],
                         'bmi' => [
-                            'current' => $todayMetrics->bmi ?? 24.8,
-                            'trend'   => $calcTrend($todayMetrics->bmi ?? 24.8, $lastMetrics->bmi ?? 24.8)
+                            'current' => $todayMetrics->bmi ?? 0,
+                            'trend'   => $calcTrend($todayMetrics->bmi ?? 0, $lastMetrics->bmi ?? 0)
                         ],
                         'bfi' => [
-                            'current' => ($todayMetrics->fat_percent ?? 18.5) . '%',
-                            'trend'   => $calcTrend($todayMetrics->fat_percent ?? 18.5, $lastMetrics->fat_percent ?? 18.5)
+                            'current' => ($todayMetrics->fat_percent ?? 0) . '%',
+                            'trend'   => $calcTrend($todayMetrics->fat_percent ?? 0, $lastMetrics->fat_percent ?? 0)
                         ]
                     ],
                     'body_measurements' => [
-                        'chest' => ($todayMetrics->chest_cm ?? 140) . ' cm',
-                        'waist' => ($todayMetrics->waist_cm ?? 82) . ' cm',
-                        'neck'  => ($todayMetrics->neck_cm ?? 38) . ' cm',
+                        'chest' => ($todayMetrics->chest_cm ?? 0) . ' cm',
+                        'waist' => ($todayMetrics->waist_cm ?? 0) . ' cm',
+                        'neck'  => ($todayMetrics->neck_cm ?? 0) . ' cm',
                     ],
                     'progress_photos' => [
                         'date' => $latestPhotos ? $latestPhotos->log_date->format('M d, Y') : 'No photos yet',
@@ -418,40 +418,50 @@ class ClientController extends Controller
         try {
             $trainer = auth('trainer')->user();
 
-            // Initial query for sessions that are not completed
+            // Base query for sessions that are SCHEDULED (including past ones not yet completed)
             $query = $trainer->sessions()
                 ->with([
                     'client:id,first_name,last_name,profile_pic,goal,city_id,zone_id',
                     'client.city',
                     'client.zone',
                 ])
-                ->where('status', '!=', Session::STATUS_COMPLETED);
+                ->where('status', Session::STATUS_SCHEDULED);
 
             // ✅ Search functionality (filters by all major fields)
             if ($request->has('search') && $request->search !== '') {
                 $search = str_replace(['%', '_'], ['\\%', '\\_'], $request->search);
                 $query->where(function ($q) use ($search) {
-                    // Search in Client details (name, goal)
                     $q->whereHas('client', function ($cq) use ($search) {
                         $cq->where('first_name', 'LIKE', "%{$search}%")
                           ->orWhere('last_name', 'LIKE', "%{$search}%")
                           ->orWhere('goal', 'LIKE', "%{$search}%");
                     })
-                    // Search in Session details (location, date)
                     ->orWhere('location', 'LIKE', "%{$search}%")
                     ->orWhere('session_date', 'LIKE', "%{$search}%");
                 });
             }
-            // ✅ Multi-date filtering (supports dates[] array or comma-separated string)
+
+            // ✅ Multi-date filtering
             if ($request->filled('dates')) {
-                $dates = is_array($request->dates) 
-                    ? $request->dates 
-                    : explode(',', $request->dates);
-                
+                $dates = is_array($request->dates) ? $request->dates : explode(',', $request->dates);
                 $query->whereIn('session_date', $dates);
             }
 
-            $sessions = $query->orderBy('session_date', 'asc')
+            // ✅ Unique Client Logic: Get only the earliest session ID for each client matching the criteria
+            // We use a subquery to find the MIN(id) grouped by client_id for rows that match our current filters
+            $subQuery = clone $query;
+            $firstSessionIds = $subQuery->selectRaw('MIN(fb_tbl_session.id)')
+                ->groupBy('client_id');
+
+            // Final query restricted to those first session IDs
+            $sessions = $trainer->sessions()
+                ->with([
+                    'client:id,first_name,last_name,profile_pic,goal,city_id,zone_id',
+                    'client.city',
+                    'client.zone',
+                ])
+                ->whereIn('fb_tbl_session.id', $firstSessionIds)
+                ->orderBy('session_date', 'asc')
                 ->orderBy('start_time', 'asc')
                 ->paginate($request->get('per_page', 20));
 

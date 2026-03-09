@@ -21,6 +21,21 @@ class ClientProgressPhoto extends Model
         'log_date' => 'date',
     ];
 
+    public function getFrontViewAttribute($value): ?string
+    {
+        return $value ? asset('storage/' . $value) : null;
+    }
+
+    public function getSideViewAttribute($value): ?string
+    {
+        return $value ? asset('storage/' . $value) : null;
+    }
+
+    public function getBackViewAttribute($value): ?string
+    {
+        return $value ? asset('storage/' . $value) : null;
+    }
+
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class, 'client_id');
