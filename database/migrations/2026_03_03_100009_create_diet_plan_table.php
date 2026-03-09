@@ -21,6 +21,7 @@ return new class extends Migration
             $table->decimal('fat_grams', 6, 1)->nullable();
             $table->string('meal_type')->nullable()->comment('breakfast, lunch, dinner, snack');
             $table->boolean('is_active')->default(true);
+            $table->unsignedBigInteger('minimum_plan_tier')->nullable();
             $table->softDeletes();
             $table->timestamps();
         });

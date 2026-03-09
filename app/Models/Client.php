@@ -40,6 +40,13 @@ class Client extends Authenticatable
         'state_id',
         'city_id',
         'zone_id',
+        'steps_goal',
+        'fat_goal',
+        'bmi_goal',
+        'ideal_weight_goal',
+        'bmr_goal',
+        'calories_goal',
+        'goals_updated_at',
     ];
 
     protected $hidden = [
@@ -53,6 +60,13 @@ class Client extends Authenticatable
         'height' => 'decimal:2',
         'weight' => 'decimal:2',
         'status' => 'integer',
+        'steps_goal' => 'integer',
+        'fat_goal' => 'decimal:2',
+        'bmi_goal' => 'decimal:2',
+        'ideal_weight_goal' => 'decimal:2',
+        'bmr_goal' => 'integer',
+        'calories_goal' => 'integer',
+        'goals_updated_at' => 'datetime',
     ];
 
     protected $appends = ['full_name'];

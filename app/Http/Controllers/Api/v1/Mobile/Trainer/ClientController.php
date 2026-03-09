@@ -162,7 +162,7 @@ class ClientController extends Controller
                         $q->where('log_date', $today);
                     },
                     'medicalReports' => function ($q) {
-                        $q->latest()->limit(5);
+                        $q->latest();
                     },
                     'waterDailyLogs' => function ($q) use ($today) {
                         $q->where('log_date', $today);
@@ -179,39 +179,51 @@ class ClientController extends Controller
             $todayWater = $client->waterDailyLogs->first();
             
             // 2. Performance Comparison (Trends)
-            // Get the EARLIER recorded metric to show ↑ or ↓
+            // Get the EARLIER recorded metrics to show ↑ or ↓
             $lastMetrics = $client->dailyMetrics()
                 ->where('log_date', '<', $today)
                 ->orderBy('log_date', 'desc')
-                ->first();
+                ->get();
+            
+            $compareMetric = $lastMetrics->first();
 
             // 3. Assignments (Today & Yesterday)
             $workoutToday = WorkoutAssignment::where('client_id', $client->id)
                 ->whereDate('assigned_date', $today)
                 ->with('workout.category')
-                ->first();
+                ->get()
+                ->unique('category_id');
 
             $dietToday = DietPlanAssignment::where('client_id', $client->id)
                 ->whereDate('assigned_date', $today)
                 ->with('dietPlan.category')
-                ->first();
+                ->get()
+                ->unique(function ($item) {
+                    return $item->dietPlan->category_id ?? $item->id;
+                });
 
             $workoutYesterday = WorkoutAssignment::where('client_id', $client->id)
                 ->whereDate('assigned_date', $yesterday)
                 ->with('workout.category')
-                ->first();
+                ->get()
+                ->unique('category_id');
 
             $dietYesterday = DietPlanAssignment::where('client_id', $client->id)
                 ->whereDate('assigned_date', $yesterday)
                 ->with('dietPlan.category')
-                ->first();
+                ->get()
+                ->unique(function ($item) {
+                    return $item->dietPlan->category_id ?? $item->id;
+                });
 
             // 4. Photos (Today or latest)
-            $latestPhotos = $client->progressPhotos->first() ?? $client->progressPhotos()->latest()->first();
+            $latestPhotos = $client->progressPhotos->isNotEmpty() 
+                ? $client->progressPhotos 
+                : $client->progressPhotos()->latest()->limit(1)->get();
 
             // 5. Trend Math Helper
             $calcTrend = function ($current, $previous) {
-                if (!$current || !$previous) return ['value' => 0, 'direction' => 'none'];
+                if ($current === null || $previous === null) return ['value' => 0, 'direction' => 'none', 'display' => '0'];
                 $diff = $current - $previous;
                 return [
                     'value' => abs(round($diff, 1)),
@@ -228,61 +240,108 @@ class ClientController extends Controller
                         'id' => $client->id,
                         'name' => $client->full_name,
                         'profile_pic' => $client->profile_pic,
-                        'goal' => $client->goal ?? 'Weight Loss & Toning',
+                        'goal' => $client->goal ?? 'Not Set',
                         'vitals' => [
                             'age' => $client->dob ? Carbon::parse($client->dob)->age : 25,
-                            'weight' => $client->weight ?? 0 . ' kg', 
-                            'height' => $client->height ?? 0 . ' cm',
+                            'weight' => ($client->weight ?? 0) . ' kg', 
+                            'height' => ($client->height ?? 0) . ' cm',
                         ]
                     ],
                     'today_progress' => [
                         'water' => [
                             'value' => ($todayWater->total_consumed_ml ?? 0) / 1000 . 'L',
                             'goal'  => ($todayWater->water_goal_ml ?? 3000) / 1000 . 'L',
-                            'percentage' => $todayWater ? ($todayWater->total_consumed_ml / $todayWater->water_goal_ml) * 100 : 0
+                            'percentage' => $todayWater && $todayWater->water_goal_ml > 0 
+                                ? ($todayWater->total_consumed_ml / $todayWater->water_goal_ml) * 100 
+                                : 0,
+                            'updated_at' => $todayWater ? $todayWater->updated_at->format('Y M d, g.i a') : null,
                         ],
                         'steps' => [
-                            'value' => $todayMetrics->steps ?? 0,
-                            'goal'  => 10000, // Static goal for now or from settings
-                        ]
+                            'value' => (int)($todayMetrics->steps ?? 0),
+                            'goal'  => (int)($client->steps_goal ?? 10000), 
+                            'updated_at' => $todayMetrics ? $todayMetrics->updated_at->format('Y M d, g.i a') : null,
+                        ],
+                        'fat' => [
+                            'value' => ($todayMetrics->fat_percent ?? 0) . '%',
+                            'goal'  => ($client->fat_goal ?? 20) . '%', 
+                            'updated_at' => $todayMetrics ? $todayMetrics->updated_at->format('Y M d, g.i a') : null,
+                        ],
+                        'bmi' => [
+                            'value' => $todayMetrics->bmi ?? 0,
+                            'goal'  => $client->bmi_goal ?? 22.1,
+                            'updated_at' => $todayMetrics ? $todayMetrics->updated_at->format('Y M d, g.i a') : null,
+                        ],
+                        'ideal_weight' => [
+                            'value' => ($todayMetrics->ideal_weight ?? 0) . ' kg',
+                            'goal'  => ($client->ideal_weight_goal ?? 70) . ' kg', 
+                            'updated_at' => $todayMetrics ? $todayMetrics->updated_at->format('Y M d, g.i a') : null,
+                        ],
+                        'bmr' => [
+                            'value' => ($todayMetrics->bmr ?? 0),
+                            'goal'  => $client->bmr_goal ?? 1400,
+                            'updated_at' => $todayMetrics ? $todayMetrics->updated_at->format('Y M d, g.i a') : null,
+                        ],
+                        'calories' => [
+                            'value' => ($todayMetrics->calories_consumed ?? 0) . ' kcal',
+                            'goal'  => ($client->calories_goal ?? 1800) . ' kcal',
+                            'updated_at' => $todayMetrics ? $todayMetrics->updated_at->format('Y M d, g.i a') : null,
+                        ],
+                        'last_goal_update' => $client->goals_updated_at ? $client->goals_updated_at->format('Y M d, g.i a') : null,
                     ],
                     'assignments' => [
-                        'workout' => $workoutToday ? [
-                            'id' => $workoutToday->id,
-                            'name' => $workoutToday->workout->name ?? 'Exercise',
-                            'image' => $workoutToday->workout->category->image ?? null,
-                            'duration' => ($workoutToday->duration ?? 0) / 60 . ' mins',
-                            'is_completed' => $workoutToday->is_completed
-                        ] : null,
-                        'diet' => $dietToday ? [
-                            'id' => $dietToday->id,
-                            'name' => $dietToday->dietPlan->name ?? 'Meal Plan',
-                            'image' => $dietToday->dietPlan->category->image ?? null,
-                            'is_completed' => $dietToday->is_completed
-                        ] : null,
+                        'workouts' => $workoutToday->map(function($w) {
+                            return [
+                                'id' => $w->id,
+                                'name' => $w->workout->category->name ?? 'Exercise',
+                                'image' => $w->workout->category->image ?? null,
+                                'duration' => ($w->duration ?? 0) / 60 . ' mins',
+                                'is_completed' => $w->is_completed
+                            ];
+                        }),
+                        'diets' => $dietToday->map(function($d) {
+                            return [
+                                'id' => $d->id,
+                                'name' => $d->dietPlan->category->name ?? 'Meal Plan',
+                                'image' => $d->dietPlan->category->image ?? null,
+                                'is_completed' => $d->is_completed
+                            ];
+                        }),
                     ],
                     'yesterday_overview' => [
-                        'workout' => $workoutYesterday ? [
-                            'name' => $workoutYesterday->workout->name ?? 'Exercise',
-                            'is_completed' => $workoutYesterday->is_completed,
-                         ] : null,
-                        'diet' => $dietYesterday ? [
-                            'name' => $dietYesterday->dietPlan->name ?? 'Meal Plan',
-                            'is_completed' => $dietYesterday->is_completed,
-                        ] : null,
+                        'workouts' => $workoutYesterday->map(function($w) {
+                            return [
+                                'id' => $w->id,
+                                'name' => $w->workout->category->name ?? 'Exercise',
+                                'image' => $w->workout->category->image ?? null,
+                                'duration' => ($w->duration ?? 0) . ' mins',
+                                'is_completed' => $w->is_completed,
+                            ];
+                        }),
+                        'diets' => $dietYesterday->map(function($d) {
+                            return [
+                                'id' => $d->id,
+                                'name' => $d->dietPlan->name ?? 'Meal Plan',
+                                'image' => $d->dietPlan->image ?? null,
+                                'duration' => ($d->duration ?? 0) . ' mins',
+                                'is_completed' => $d->is_completed,
+                            ];
+                        }),
                     ],
                     'metrics' => [
                         'weight' => [
                             'current' => ($todayMetrics->weight_kg ?? $client->weight ?? 0) . ' kg',
-                            'trend'   => $calcTrend($todayMetrics->weight_kg ?? $client->weight ?? 0, $lastMetrics->weight_kg ?? $client->weight ?? 0)
+                            'trend'   => $calcTrend(
+                                $todayMetrics->weight_kg ?? $client->weight ?? 0, 
+                                $compareMetric->weight_kg ?? $client->weight ?? 0
+                            )
                         ],
                         'bmi' => [
                             'current' => $todayMetrics->bmi ?? 0,
-                            'trend'   => $calcTrend($todayMetrics->bmi ?? 0, $lastMetrics->bmi ?? 0)
+                            'trend'   => $calcTrend($todayMetrics->bmi ?? 0, $compareMetric->bmi ?? 0)
                         ],
                         'bfi' => [
                             'current' => ($todayMetrics->fat_percent ?? 0) . '%',
-                            'trend'   => $calcTrend($todayMetrics->fat_percent ?? 0, $lastMetrics->fat_percent ?? 0)
+                            'trend'   => $calcTrend($todayMetrics->fat_percent ?? 0, $compareMetric->fat_percent ?? 0)
                         ]
                     ],
                     'body_measurements' => [
@@ -290,20 +349,23 @@ class ClientController extends Controller
                         'waist' => ($todayMetrics->waist_cm ?? 0) . ' cm',
                         'neck'  => ($todayMetrics->neck_cm ?? 0) . ' cm',
                     ],
-                    'progress_photos' => [
-                        'date' => $latestPhotos ? $latestPhotos->log_date->format('M d, Y') : 'No photos yet',
-                        'front_view' => $latestPhotos->front_view ?? null,
-                        'side_view'  => $latestPhotos->side_view ?? null,
-                    ],
+                    'progress_photos' => $latestPhotos->map(function($photo) {
+                        return [
+                            'date' => $photo->log_date ? $photo->log_date->format('M d, Y') : 'N/A',
+                            'front_view' => $photo->front_view ?? null,
+                            'side_view'  => $photo->side_view ?? null,
+                            'back_view'  => $photo->back_view ?? null,
+                        ];
+                    }),
                     'client_status' => [
-                        'health' => 'None reported', // Link to health profile/notes
+                        'health' => 'None reported', 
                         'diet_preference' => 'Non-Veg', 
                     ],
                     'medical_reports' => $client->medicalReports->map(function ($report) {
                         return [
                             'id' => $report->id,
                             'name' => $report->name,
-                            'date' => $report->report_date->format('d M Y'),
+                            'date' => $report->report_date ? $report->report_date->format('d M Y') : 'N/A',
                             'file' => $report->file_path
                         ];
                     })
@@ -314,6 +376,7 @@ class ClientController extends Controller
                 'trainer_id' => auth('trainer')->id(),
                 'client_id'  => $id,
                 'error'      => $e->getMessage(),
+                'trace'      => $e->getTraceAsString(),
             ]);
 
             return response()->json(['status' => false, 'message' => 'Something went wrong.'], 500);
@@ -441,17 +504,26 @@ class ClientController extends Controller
                 });
             }
 
-            // ✅ Multi-date filtering
+            // ✅ Multi-date filtering (Intersection Logic)
+            $uniqueDateCount = 0;
             if ($request->filled('dates')) {
                 $dates = is_array($request->dates) ? $request->dates : explode(',', $request->dates);
+                $dates = array_unique(array_filter($dates));
+                $uniqueDateCount = count($dates);
                 $query->whereIn('session_date', $dates);
             }
 
-            // ✅ Unique Client Logic: Get only the earliest session ID for each client matching the criteria
-            // We use a subquery to find the MIN(id) grouped by client_id for rows that match our current filters
+            // ✅ Unique Client Logic: Get only the earliest session ID for each client
             $subQuery = clone $query;
+            
+            // We use selectRaw to specifically pick the MIN(id) and clear any other selects
             $firstSessionIds = $subQuery->selectRaw('MIN(fb_tbl_session.id)')
                 ->groupBy('client_id');
+
+            // If multiple dates are requested, ensure client has sessions on ALL of them
+            if ($uniqueDateCount > 1) {
+                $firstSessionIds->havingRaw('COUNT(DISTINCT session_date) >= ?', [$uniqueDateCount]);
+            }
 
             // Final query restricted to those first session IDs
             $sessions = $trainer->sessions()
@@ -470,6 +542,7 @@ class ClientController extends Controller
                 $client = $session->client;
                 
                 return [
+                    'is_workout_assigned' => $session->is_workout_assigned,
                     'session_id'  => $session->id,
                     'client_id'   => $client->id,
                     'name'        => $client->full_name,
@@ -477,7 +550,7 @@ class ClientController extends Controller
                     'subtitle'    => $client->goal ?? 'Fitness Session',
                     'date'        => Carbon::parse($session->session_date)->format('d M Y'),
                     'time_display'=> Carbon::parse($session->start_time)->format('g:i A') . ' To ' . Carbon::parse($session->end_time)->format('g:i A'),
-                    'location'    => $session->location ?? $client->zone->name ?? $client->city->name ?? 'Remote',
+                    'location'    => $session->locationDetail->name ?? $client->city->name ?? $client->zone->name ?? 'Remote',
                 ];
             });
 

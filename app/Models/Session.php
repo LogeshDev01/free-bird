@@ -35,6 +35,15 @@ class Session extends Model
         'status'       => 'integer',
     ];
 
+    protected $appends = ['is_workout_assigned'];
+
+    // ─── Accessors ─────────────────────────────────────────
+
+    public function getIsWorkoutAssignedAttribute(): bool
+    {
+        return $this->workoutAssignments()->exists();
+    }
+
     // ─── Relationships ────────────────────────────────────
 
     public function trainer(): BelongsTo
@@ -59,4 +68,9 @@ class Session extends Model
 
     // Note: 'location' is a plain VARCHAR string column (not a FK).
     // $session->location returns the string directly — no relation needed.
+
+    public function workoutAssignments(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(WorkoutAssignment::class, 'session_id');
+    }
 }

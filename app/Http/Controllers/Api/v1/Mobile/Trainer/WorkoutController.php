@@ -310,17 +310,17 @@ class WorkoutController extends Controller
                 $validated['assigned_dates']
             );
 
-            // Single query — fetch only client_id + session_date
+            // Single query — fetch only id + client_id + session_date
             $existingSessions = Session::where('trainer_id', $trainer->id)
                 ->whereIn('client_id', $clientIds)
                 ->whereIn('session_date', $assignedDates)
-                ->where('status', Session::STATUS_SCHEDULED)   // only active/scheduled sessions count
-                ->get(['client_id', 'session_date']);
+                ->where('status', Session::STATUS_SCHEDULED)
+                ->get(['id', 'client_id', 'session_date']);
 
-            // Build a hash-set: "12_2026-03-06" => true
-            $sessionSet = $existingSessions
+            // Build a hash-map: "12_2026-03-06" => sessionId
+            $sessionMap = $existingSessions
                 ->mapWithKeys(fn($s) => [
-                    $s->client_id . '_' . \Carbon\Carbon::parse($s->session_date)->format('Y-m-d') => true
+                    $s->client_id . '_' . \Carbon\Carbon::parse($s->session_date)->format('Y-m-d') => $s->id
                 ])
                 ->all();
 
@@ -329,7 +329,7 @@ class WorkoutController extends Controller
             foreach ($clientIds as $clientId) {
                 foreach ($assignedDates as $date) {
                     $key = $clientId . '_' . $date;
-                    if (!isset($sessionSet[$key])) {
+                    if (!isset($sessionMap[$key])) {
                         $missingPairs[] = [
                             'client_id' => $clientId,
                             'date'      => $date,
@@ -353,13 +353,16 @@ class WorkoutController extends Controller
             $createdAssignments = [];
 
             \Illuminate\Support\Facades\DB::transaction(function () use (
-                $validated, $trainer, $batchId, &$createdCount, &$createdAssignments
+                $validated, $trainer, $batchId, $sessionMap, &$createdCount, &$createdAssignments
             ) {
                 foreach ($validated['client_ids'] as $clientId) {
                     foreach ($validated['assigned_dates'] as $assignedDate) {
+                        $dateKey = $clientId . '_' . \Carbon\Carbon::parse($assignedDate)->format('Y-m-d');
+                        $sessionId = $sessionMap[$dateKey] ?? null;
+                        Log::info("Mapping session", ['key' => $dateKey, 'id_found' => $sessionId]);
+
                         foreach ($validated['assignments'] as $item) {
                             // ── Duplicate Check ──────────────────────────────────────
-                            // If this specific workout is already assigned for this date...
                             $existing = WorkoutAssignment::where('client_id', $clientId)
                                 ->whereDate('assigned_date', $assignedDate)
                                 ->where('workout_id', $item['workout_id'])
@@ -369,15 +372,13 @@ class WorkoutController extends Controller
                             $totalDuration = $this->calculateDuration($item['custom_sets'] ?? []);
 
                             if ($existing) {
-                                // If it's already COMPLETED or IN_PROGRESS, skip it entirely
-                                // We don't want to reset their hard work.
                                 if ($existing->status >= WorkoutAssignment::STATUS_IN_PROGRESS) {
                                     continue;
                                 }
 
-                                // If it's still PENDING/DRAFT, update it with the new configuration
                                 $existing->update([
                                     'batch_id'    => $batchId,
+                                    'session_id'  => $sessionId,
                                     'category_id' => $item['category_id'],
                                     'custom_sets' => $item['custom_sets'] ?? null,
                                     'duration'    => $totalDuration,
@@ -395,6 +396,7 @@ class WorkoutController extends Controller
                                 'assigned_by_id'   => $trainer->id,
                                 'assigned_by_type' => Trainer::class,
                                 'batch_id'         => $batchId,
+                                'session_id'       => $sessionId,
                                 'client_id'        => $clientId,
                                 'category_id'      => $item['category_id'],
                                 'workout_id'       => $item['workout_id'],

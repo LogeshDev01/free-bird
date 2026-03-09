@@ -34,7 +34,10 @@ class DietPlan extends Model
     ];
 
     // ─── Relationships ─────────────────────────────────────
-
+    public function getImageAttribute($value)
+    {
+        return $value ? asset('storage/' . $value) : null;
+    }
     public function category(): BelongsTo
     {
         return $this->belongsTo(DietPlanCategory::class, 'category_id');

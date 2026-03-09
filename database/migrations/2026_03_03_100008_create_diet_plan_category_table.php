@@ -14,6 +14,7 @@ return new class extends Migration
             $table->string('icon')->nullable();
             $table->text('description')->nullable();
             $table->boolean('is_active')->default(true);
+            $table->unsignedBigInteger('minimum_plan_tier')->nullable();
             $table->timestamps();
         });
     }

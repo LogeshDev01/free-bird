@@ -32,7 +32,7 @@ class DietPlanController extends Controller
 
             // ⚠️ minimum_plan_tier must be selected — it's the FK used by subsciptionPlans relation
             $categories = DietPlanCategory::where('is_active', true)
-                ->select(['id', 'name', 'image', 'description', 'minimum_plan_tier'])
+                ->select(['id', 'name', 'image', 'description','minimum_plan_tier'])
                 ->withCount('dietPlans')
                 ->with('plan:id,name')
                 ->when($request->filled('search'), function ($query) use ($request) {
@@ -50,8 +50,8 @@ class DietPlanController extends Controller
                     'description'       => $category->description,
                     'diet_plans_count'  => $category->diet_plans_count,
                     'subscription_plan' => $category->plan
-                        ? ['id' => $category->plan->id, 'name' => $category->plan->name]
-                        : null,
+                        ? ['id' => $category->minimum_plan_tier, 'name' => $category->plan->name]
+                        : null
                 ];
             });
             
@@ -144,11 +144,10 @@ class DietPlanController extends Controller
                     'name'          => $plan->name,
                     'category'      => $plan->category->name ?? 'N/A',
                     'meal_type'     => $plan->mealType->name ?? 'N/A',
-                    'meal_type_icon'=> $plan->mealType->icon ?? null,
-                    'calories'      => $plan->calories,
-                    'protein'       => $plan->protein,
-                    'carbs'         => $plan->carbs,
-                    'fats'          => $plan->fats,
+                    'calories'      => $plan->calories ?? 0,
+                    'protein'       => $plan->protein ?? 0,
+                    'carbs'         => $plan->carbs ?? 0,
+                    'fats'          => $plan->fats ?? 0,
                     'image'         => $plan->image,
                     'is_active'     => $plan->is_active,
                     'created_at'    => \Illuminate\Support\Carbon::parse($plan->created_at)->format('d M Y'),

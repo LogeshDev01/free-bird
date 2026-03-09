@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class DietPlanCategory extends Model
 {
@@ -21,6 +21,7 @@ class DietPlanCategory extends Model
 
     protected $casts = [
         'is_active' => 'boolean',
+        'minimum_plan_tier' => 'integer',
     ];
 
     public function getImageAttribute($value)
