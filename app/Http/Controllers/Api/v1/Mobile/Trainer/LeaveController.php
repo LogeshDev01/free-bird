@@ -160,6 +160,17 @@ class LeaveController extends Controller
             $end = Carbon::parse($validated['end_date']);
             $totalDays = $start->diffInDays($end) + 1;
 
+            // 30 days leave validation: Must apply 1 month prior
+            if ($totalDays >= 30) {
+                $oneMonthFromNow = Carbon::today()->addMonth();
+                if ($start->lessThan($oneMonthFromNow)) {
+                    return response()->json([
+                        'status'  => false,
+                        'message' => 'You cannot create a leave for 1 mon. if you need then from the leave start date it should be 1 month prior.',
+                    ], 422);
+                }
+            }
+
             // Short leave detection (same day + time provided)
             $isShortLeave = ($validated['start_date'] === $validated['end_date']) && 
                             !empty($validated['start_time']) && 
